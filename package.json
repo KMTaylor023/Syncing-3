@@ -1,0 +1,44 @@
+{
+  "name": "synchromaze",
+  "version": "1.0.0",
+  "description": "A multiplayer synchronous maze game",
+  "main": "./server/server.js",
+  "scripts": {
+    "build": "babel ./client --out-file ./hosted/bundle.js",
+	"watch": "babel --watch ./client --out-file ./hosted/bundle.js",
+	"nodemon": "nodemon --watch ./server ./server/server.js ./hosted/client.html",
+    "start": "node ./server/server.js",
+    "pretest": "eslint ./server ./client --fix",
+    "test": "echo \"Tests complete\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KMTaylor023/Synchromaze.git"
+  },
+  "keywords": [
+    "Synchronous",
+    "maze",
+    "590",
+    "IGME",
+    "wow",
+    "cool",
+    "awesome"
+  ],
+  "author": "Keegan Taylor",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/KMTaylor023/Synchromaze/issues"
+  },
+  "homepage": "https://github.com/KMTaylor023/Synchromaze#readme",
+  "dependencies": {
+    "socket.io": "^2.0.4"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
+    "eslint": "^4.17.0",
+    "eslint-config-airbnb": "^16.1.0",
+    "eslint-plugin-import": "^2.8.0",
+    "nodemon": "^1.14.12"
+  }
+}
