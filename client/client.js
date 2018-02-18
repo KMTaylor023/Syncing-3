@@ -81,10 +81,10 @@ const addPlayer = (number) => {
 
 
   // sets up corners
-  if (number > 2) {
+  if (number > 1) {
     players[number].y = maze.length - 1;
   }
-  if (number === 1 || number === 3) {
+  if (number === 0 || number === 2) {
     players[number].x = maze[0].length - 1;
   }
 };
@@ -129,7 +129,11 @@ const updatePosition = () => {
   return false;
 };
 
-const drawPlayer = (player, ctx, color) => {
+const drawPlayer = (playnum, ctx, color) => {
+  const player = players[playnum];
+  if(!player){
+    return;
+  }
   ctx.save();
   ctx.fillStyle = color;
   ctx.fillRect(
@@ -148,19 +152,26 @@ const drawMaze = () => {
   mazeCtx.fillRect(0, 0, mazeCanvas.width, mazeCanvas.height);
   mazeCtx.fillStyle = 'white';
 
-  let xPos = 0;
+  
   let yPos = 0;
 
   for (let y = 0; y < maze.length; y++) {
+    let xPos = 0;
     for (let x = 0; x < maze[y].length; x++) {
-      mazeCtx.fillRect(x + MAZE_PAD, y + MAZE_PAD, P_SIZE, P_SIZE);
-      const mazePos = maze[y][x];
+      let mazePos = maze[y][x];
+      if(mazePos < 0){
+        mazeCtx.fillStyle = "green";
+        mazePos = -mazePos;
+      }
+      mazeCtx.fillRect(xPos + MAZE_PAD, yPos + MAZE_PAD, P_SIZE, P_SIZE);
+      
+      
       for (let i = 0; i < 4; i++) {
         // shifts bit over by i, then ands bits with 1
         // checks if the bit for this direction is set to 1
         // if so, draws a rect in that direction for the maze
         // bit meaning 1:L 2:U 4:R 8:D
-        if (((mazePos << i) & 1) === 1) {
+        if (((mazePos >> i) & 1) === 1) {
           switch (i) {
             case 0:
               mazeCtx.fillRect(xPos, yPos + MAZE_PAD, MAZE_PAD, P_SIZE);
@@ -176,6 +187,9 @@ const drawMaze = () => {
               break;
           }
         }
+      }
+      if(maze[y][x] < 0){
+        mazeCtx.fillStyle = "white";
       }
       xPos += MAZE_SQUARE_SIZE;
     }
@@ -213,11 +227,12 @@ const onJoin = (sock, canvas) => {
   const socket = sock;
 
   socket.on('join', (data) => {
+    if(playerNum > -1){
+      return;
+    }
     playerNum = data.player;
 
     ({ maze } = data);
-    console.dir(data.maze);
-    console.dir(maze);
     addPlayer(playerNum, canvas);
     drawMaze();
 
@@ -266,10 +281,11 @@ const keyUpHandler = (e) => {
 };
 
 const init = () => {
-  console.log('loading...');
   const canvas = document.querySelector('canvas');
-  canvas.width = 500;
-  canvas.height = 500;
+  canvas.width = 520;
+  canvas.height = 520;
+  mazeCanvas.width = 520;
+  mazeCanvas.height = 520;
   canvas.style.border = '1px solid blue';
 
   helpTextTag = document.querySelector('#helpText');

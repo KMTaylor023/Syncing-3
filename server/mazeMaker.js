@@ -1,13 +1,8 @@
-const getRandomInt = maxExclusive => Math.floor(Math.random() * maxExclusive);
 
-const incrementSide = (side) => {
-  let next = side;
-  next++;
-  if (next > 3) {
-    next = 0;
-  }
-  return next;
-};
+const INVERTED = [2,3,0,1];
+const INCREMENTED = [1,2,3,0];
+
+const getRandomInt = maxExclusive => Math.floor(Math.random() * maxExclusive);
 
 // gets next maze position
 const getPos = (maze, pos, next) => {
@@ -56,7 +51,6 @@ const createMaze = (height, width) => new Promise((resolve) => {
 
   const generate = (cur) => {
     let side = getRandomInt(4);
-    maze[cur.y][cur.x] = maze[cur.y][cur.x] || 0;
 
     let next = {};
 
@@ -64,9 +58,12 @@ const createMaze = (height, width) => new Promise((resolve) => {
       next = getPos(maze, cur, side);
 
       if (next === null || maze[next.y][next.x]) {
-        side = incrementSide(side);
+        side = INCREMENTED[side];
       } else {
         /* eslint no-bitwise: ["error", { "allow": ["|=","<<"] }] */
+        maze[cur.y][cur.x] = maze[cur.y][cur.x] || 0;
+        maze[next.y][next.x] = maze[next.y][next.x] || 0;
+        maze[next.y][next.x] |= (1 << INVERTED[side]);
         maze[cur.y][cur.x] |= (1 << side);
         generate(next);
       }

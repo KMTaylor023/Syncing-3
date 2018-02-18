@@ -18,12 +18,10 @@ const bundle = fs.readFileSync(`${__dirname}/../hosted/bundle.js`);
 
 let maze;
 
-mazeHandler.createMaze(21, 21).then((m) => {
+mazeHandler.createMaze(17,17).then((m) => {
   maze = m;
   console.log(maze);
 });
-
-console.dir(maze);
 
 const onRequest = (request, response) => {
   const parsedURL = url.parse(request.url);
@@ -44,12 +42,12 @@ console.log(`Listening on 127.0.0.1:${port}`);
 
 const io = socketio(app);
 
+
 // joins socket to a room
 // Doesn't need to be a promise, but probably will
 // room creation will require waiting while new mazes are made
 const joinRoom = sock => new Promise((resolve, fail) => {
   const socket = sock;
-
   if (roomCount < MAX_ROOM_SIZE) {
     roomCount++;
   } else {
@@ -60,7 +58,7 @@ const joinRoom = sock => new Promise((resolve, fail) => {
 
   socket.join('room1');
   socket.roomString = 'room1';
-  rooms.room1 = {};
+  rooms.room1 = rooms.room1 || {};
   const room = rooms.room1;
   for (let i = 0; i < MAX_ROOM_SIZE; i++) {
     if (!room[i]) {
@@ -68,6 +66,7 @@ const joinRoom = sock => new Promise((resolve, fail) => {
       socket.playerPos = i;
       socket.emit('join', { player: socket.playerPos, maze });
       resolve();
+      break;
     }
   }
 
@@ -134,6 +133,11 @@ const onDisconnect = (sock) => {
   socket.on('disconnect', () => {
     if (socket.roomString) {
       socket.leave(socket.roomString);
+      delete rooms[socket.roomString][socket.playerPos];
+      console.dir(rooms[socket.roomString]);
+      delete socket.playerPos;
+      delete socket.roomString;
+      delete socket.isJoined;
     }
   });
 };
@@ -141,14 +145,20 @@ const onDisconnect = (sock) => {
 // Sets up the socket message handlers
 io.sockets.on('connection', (sock) => {
   const socket = sock;
+  
+  
+  if(!socket.isJoined){
+    socket.isJoined = true;
+  }
 
   joinRoom(socket).then(() => {
-    socket.disconnect(true);
-  }).catch(() => {
     console.log(`player ${socket.playerPos} joined`);
     onMove(socket);
     onWin(socket);
     onDisconnect(socket);
+  }).catch(() => {
+    socket.disconnect(true);
+    delete socket.isJoined;
   });
 
   console.log('attempt');
