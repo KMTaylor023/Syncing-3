@@ -7,7 +7,7 @@
     "build": "babel ./client --out-file ./hosted/bundle.js",
     "watch": "babel --watch ./client --out-file ./hosted/bundle.js",
     "nodemon": "nodemon --watch ./server ./server/server.js ./hosted/client.html",
-    "start": "node ./server/server.js",
+    "start": "npm run build && node ./server/server.js",
     "pretest": "eslint ./server ./client --fix",
     "test": "echo \"Tests complete\""
   },
