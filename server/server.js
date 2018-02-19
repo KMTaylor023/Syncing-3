@@ -134,7 +134,8 @@ const onDisconnect = (sock) => {
   socket.on('disconnect', () => {
     if (socket.roomString) {
       socket.leave(socket.roomString);
-      delete rooms[socket.roomString][socket.playerPos];
+      if(rooms[socket.roomString])
+        delete rooms[socket.roomString][socket.playerPos];
       delete socket.playerPos;
       delete socket.roomString;
       delete socket.isJoined;
