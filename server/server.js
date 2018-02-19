@@ -28,6 +28,8 @@ const onRequest = (request, response) => {
   if (parsedURL.pathname === '/bundle.js') {
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.write(bundle);
+  } else if (parsedURL.pathname === '/reset.js') {
+    delete rooms.room1;
   } else {
     response.writeHead(200, { 'Content-Type': 'text/html' });
     response.write(index);
@@ -119,6 +121,10 @@ const onWin = (sock) => {
 
     socket.broadcast.to(socket.roomString).emit('lose', { winner: socket.playerPos });
     socket.emit('win', {});
+    mazeHandler.createMaze(17, 17).then((m) => {
+      maze = m;
+    });
+    delete rooms.room1;
   });
 };
 
