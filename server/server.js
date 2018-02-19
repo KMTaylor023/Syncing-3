@@ -18,9 +18,8 @@ const bundle = fs.readFileSync(`${__dirname}/../hosted/bundle.js`);
 
 let maze;
 
-mazeHandler.createMaze(17,17).then((m) => {
+mazeHandler.createMaze(17, 17).then((m) => {
   maze = m;
-  console.log(maze);
 });
 
 const onRequest = (request, response) => {
@@ -79,17 +78,13 @@ const joinRoom = sock => new Promise((resolve, fail) => {
 const validatePos = (sock, data) => {
   const socket = sock;
 
-  const newData = { fail: true };
+  const newData = {};
 
-  if (!data.x || !data.y) {
-    return newData;
-  }
 
   newData.x = parseFloat(data.x);
   newData.y = parseFloat(data.y);
-
   if (Number.isNaN(newData.x) || Number.isNaN(newData.y)) {
-    return newData;
+    return {};
   }
 
   newData.timestamp = new Date().getTime();
@@ -104,10 +99,10 @@ const onMove = (sock) => {
 
   socket.on('move', (data) => {
     const newData = validatePos(socket, data);
-
+    /*
     if (newData.fail) {
       return;
-    }
+    } */
 
     socket.broadcast.to(socket.roomString).emit('move', newData);
   });
@@ -134,7 +129,6 @@ const onDisconnect = (sock) => {
     if (socket.roomString) {
       socket.leave(socket.roomString);
       delete rooms[socket.roomString][socket.playerPos];
-      console.dir(rooms[socket.roomString]);
       delete socket.playerPos;
       delete socket.roomString;
       delete socket.isJoined;
@@ -145,9 +139,9 @@ const onDisconnect = (sock) => {
 // Sets up the socket message handlers
 io.sockets.on('connection', (sock) => {
   const socket = sock;
-  
-  
-  if(!socket.isJoined){
+
+
+  if (!socket.isJoined) {
     socket.isJoined = true;
   }
 

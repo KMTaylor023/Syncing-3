@@ -1,6 +1,6 @@
 /* eslint-env browser */
 /* global io */
-/* eslint no-bitwise: ["error", { "allow": ["|=","<<","&"] }] */
+/* eslint no-bitwise: ["error", { "allow": ["|=",">>","&"] }] */
 // previous comments are to set up eslint for browser use
 // I wanted to eslint the browser code for my own sanity
 // also i *needed* bitwise
@@ -8,6 +8,7 @@
 
 const players = [];
 
+const MOVE_FRAME_WAIT = 20;
 const P_SIZE = 20;
 const MAZE_SQUARE_SIZE = 30;
 const MAZE_PAD = (MAZE_SQUARE_SIZE - P_SIZE) / 2;
@@ -28,19 +29,22 @@ let playerNum = -1;
 
 let maze;
 
+let moveFrames = MOVE_FRAME_WAIT;
+
 let helpTextTag;
 
 let tryWin = false;
-let gameRunning = false;
+let gameRunning = true;
 // const ready = false;
 
 const onLose = (sock) => {
   const socket = sock;
 
   socket.on('lose', (data) => {
-    helpTextTag.innerHTML = `YOU LOST TO PLAYER ${data.winner}!! :c`;
+    helpTextTag.innerHTML = `YOU LOST TO PLAYER ${data.winner + 1}!! :c`;
     helpTextTag.style.color = 'red';
     gameRunning = false;
+    tryWin = true;
   });
 };
 
@@ -55,6 +59,9 @@ const onWin = (sock) => {
 };
 
 const updatePlayer = (number, data) => {
+  if (!players[number]) {
+    players[number] = {};
+  }
   const player = players[number];
 
 
@@ -65,7 +72,6 @@ const updatePlayer = (number, data) => {
 
 const onMove = (sock) => {
   const socket = sock;
-
   socket.on('move', (data) => {
     if (gameRunning) { updatePlayer(data.playerPos, data); }
   });
@@ -90,37 +96,47 @@ const addPlayer = (number) => {
 };
 
 // Updates position, returns true if player is now in win spot
-const updatePosition = () => {
+const updatePosition = (sock) => {
+  const socket = sock;
   const me = players[playerNum];
   const mazePos = maze[me.y][me.x];
 
-
-  // loops through all possible directions to move
-  // exits loop if one direction is true
-  // order is defined by the UP, DOWN, LEFT, RIGHT globals
-  for (let i = 0; i < 4; i++) {
-    if (move[i]) {
-      // shifts bit over by i, then ands bits with 1
-      // checks if the bit for this direction is set to 1
-      // bit meaning 1:L 2:U 4:R 8:D
-      if (((mazePos << i) & 1) === 1) {
-        switch (i) {
-          case 0:
-            me.x--;
-            break;
-          case 1:
-            me.y--;
-            break;
-          case 2:
-            me.x++;
-            break;
-          default:
-            me.y++;
-            break;
+  if (moveFrames === MOVE_FRAME_WAIT) {
+    let moved = false;
+    // loops through all possible directions to move
+    // exits loop if one direction is true
+    // order is defined by the UP, DOWN, LEFT, RIGHT globals
+    for (let i = 0; i < 4; i++) {
+      if (move[i]) {
+        moved = true;
+        // shifts bit over by i, then ands bits with 1
+        // checks if the bit for this direction is set to 1
+        // bit meaning 1:L 2:U 4:R 8:D
+        if (((mazePos >> i) & 1) === 1) {
+          switch (i) {
+            case 0:
+              me.x--;
+              break;
+            case 1:
+              me.y--;
+              break;
+            case 2:
+              me.x++;
+              break;
+            default:
+              me.y++;
+              break;
+          }
+          break;
         }
-        break;
       }
     }
+    if (moved) {
+      moveFrames = 0;
+      socket.emit('move', { x: me.x, y: me.y });
+    }
+  } else {
+    moveFrames++;
   }
 
   if (maze[me.y][me.x] < 0) {
@@ -131,7 +147,7 @@ const updatePosition = () => {
 
 const drawPlayer = (playnum, ctx, color) => {
   const player = players[playnum];
-  if(!player){
+  if (!player) {
     return;
   }
   ctx.save();
@@ -152,20 +168,20 @@ const drawMaze = () => {
   mazeCtx.fillRect(0, 0, mazeCanvas.width, mazeCanvas.height);
   mazeCtx.fillStyle = 'white';
 
-  
+
   let yPos = 0;
 
   for (let y = 0; y < maze.length; y++) {
     let xPos = 0;
     for (let x = 0; x < maze[y].length; x++) {
       let mazePos = maze[y][x];
-      if(mazePos < 0){
-        mazeCtx.fillStyle = "green";
+      if (mazePos < 0) {
+        mazeCtx.fillStyle = 'green';
         mazePos = -mazePos;
       }
       mazeCtx.fillRect(xPos + MAZE_PAD, yPos + MAZE_PAD, P_SIZE, P_SIZE);
-      
-      
+
+
       for (let i = 0; i < 4; i++) {
         // shifts bit over by i, then ands bits with 1
         // checks if the bit for this direction is set to 1
@@ -188,8 +204,8 @@ const drawMaze = () => {
           }
         }
       }
-      if(maze[y][x] < 0){
-        mazeCtx.fillStyle = "white";
+      if (maze[y][x] < 0) {
+        mazeCtx.fillStyle = 'white';
       }
       xPos += MAZE_SQUARE_SIZE;
     }
@@ -199,7 +215,7 @@ const drawMaze = () => {
 
 const redraw = (time, socket, canvas, ctx) => {
   if (!tryWin) {
-    tryWin = updatePosition(canvas);
+    tryWin = updatePosition(socket);
     if (tryWin) {
       socket.emit('win', players[playerNum]);
     } else {
@@ -227,7 +243,7 @@ const onJoin = (sock, canvas) => {
   const socket = sock;
 
   socket.on('join', (data) => {
-    if(playerNum > -1){
+    if (playerNum > -1) {
       return;
     }
     playerNum = data.player;
