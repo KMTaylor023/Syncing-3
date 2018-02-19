@@ -30,6 +30,7 @@ const onRequest = (request, response) => {
     response.write(bundle);
   } else if (parsedURL.pathname === '/reset.js') {
     delete rooms.room1;
+    roomCount--;
   } else {
     response.writeHead(200, { 'Content-Type': 'text/html' });
     response.write(index);
@@ -139,6 +140,7 @@ const onDisconnect = (sock) => {
       delete socket.playerPos;
       delete socket.roomString;
       delete socket.isJoined;
+      roomCount--;
     }
   });
 };
