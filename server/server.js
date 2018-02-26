@@ -23,7 +23,7 @@ const onRequest = (request, response) => {
   if (parsedURL.pathname === '/bundle.js') {
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.write(bundle);
-  } else if (parsedURL.pathname === "./style.css"){
+  } else if (parsedURL.pathname === '/style.css') {
     response.writeHead(200, { 'Content-Type': 'text/css' });
     response.write(style);
   } else {
@@ -144,6 +144,14 @@ const leaveRoom = (sock, noLobby) => {
   }
 
   enterLobby(socket);
+};
+
+const onLobby = (sock) => {
+  const socket = sock;
+
+  socket.on('lobby', () => {
+    enterLobby(socket);
+  });
 };
 
 const onLeave = (sock) => {
@@ -310,6 +318,7 @@ io.sockets.on('connection', (sock) => {
   enterLobby(socket);
 
   onCreate(socket);
+  onLobby(socket);
   onLeave(socket);
   onReady(socket);
   onJoinRoom(socket);

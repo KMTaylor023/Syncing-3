@@ -15,6 +15,13 @@ var P_SIZE = 20;
 var MAZE_SQUARE_SIZE = 30;
 var MAZE_PAD = (MAZE_SQUARE_SIZE - P_SIZE) / 2;
 
+var LOBBY = 0;
+var GAME = 1;
+var LOADING = 2;
+var ERR = 3;
+
+var sections = ['lobby', 'game', 'loading', 'err'];
+
 var LEFT = 0;
 var UP = 1;
 var RIGHT = 2;
@@ -34,9 +41,19 @@ var moveFrames = MOVE_FRAME_WAIT;
 
 var helpTextTag = void 0;
 
+var ready = false;
 var tryWin = false;
-var gameRunning = true;
+var gameRunning = false;
 // const ready = false;
+
+var resetVars = function resetVars() {
+  gameRunning = false;
+  ready = false;
+  tryWin = false;
+  maze = {};
+  moveFrames = MOVE_FRAME_WAIT;
+  playerNum = -1;
+};
 
 var onLose = function onLose(sock) {
   var socket = sock;
@@ -98,6 +115,9 @@ var addPlayer = function addPlayer(number) {
 
 // Updates position, returns true if player is now in win spot
 var updatePosition = function updatePosition(sock) {
+  if (tryWin || !gameRunning) {
+    return false;
+  }
   var socket = sock;
   var me = players[playerNum];
   var mazePos = maze[me.y][me.x];
@@ -207,12 +227,14 @@ var drawMaze = function drawMaze() {
 };
 
 var redraw = function redraw(time, socket, canvas, ctx) {
-  if (!tryWin) {
-    tryWin = updatePosition(socket);
-    if (tryWin) {
-      socket.emit('win', players[playerNum]);
-    } else {
-      socket.emit('move', players[playerNum]);
+  if (gameRunning) {
+    if (!tryWin) {
+      tryWin = updatePosition(socket);
+      if (tryWin) {
+        socket.emit('win', players[playerNum]);
+      } else {
+        socket.emit('move', players[playerNum]);
+      }
     }
   }
 
@@ -233,25 +255,47 @@ var redraw = function redraw(time, socket, canvas, ctx) {
   });
 };
 
-var onJoin = function onJoin(sock, canvas) {
+var setVisible = function setVisible(visible) {
+  for (var i = 0; i < sections.length; i++) {
+    if (i === visible) {
+      sections[i].style.display = 'block';
+    } else {
+      sections[i].style.display = 'none';
+    }
+  }
+};
+
+var onLoad = function onLoad(sock, canvas) {
+  var socket = sock;
+
+  socket.on('load', function (data) {
+    maze = data.maze;
+
+    drawMaze();
+
+    setVisible(GAME);
+
+    requestAnimationFrame(function (time) {
+      return redraw(time, socket, canvas, canvas.getContext('2d'));
+    });
+  });
+};
+
+var onJoin = function onJoin(sock) {
   var socket = sock;
 
   socket.on('join', function (data) {
     if (playerNum > -1) {
       return;
     }
+
+    setVisible(LOADING);
+
     playerNum = data.player;
 
-    maze = data.maze;
-
-    addPlayer(playerNum, canvas);
-    drawMaze();
+    addPlayer(playerNum);
 
     // TODO add ready button
-
-    requestAnimationFrame(function (time) {
-      return redraw(time, socket, canvas, canvas.getContext('2d'));
-    });
   });
 };
 
@@ -260,6 +304,43 @@ var onFull = function onFull(sock) {
 
   socket.on('full', function () {
     // TODO something about how you didn't join, idk, not important right now
+  });
+};
+
+var onErr = function onErr(sock) {
+  var socket = sock;
+
+  socket.on('err', function (data) {
+    var m = data.msg;
+
+    resetVars();
+    setVisible(ERR);
+    document.querySelector('errMsg').innerHTML = m;
+  });
+};
+
+var onLobby = function onLobby(sock, select) {
+  var socket = sock;
+
+  while (select.firstChild) {
+    select.removeChild(select.firstChild);
+  }
+
+  socket.on('lobby', function (data) {
+    setVisible(LOBBY);
+    console.dir(data);
+
+    var keys = Object.keys(data);
+    for (var i = 0; i < keys.length; i++) {
+      if (data[keys[i]].roomCount >= 4) {
+        return; // TODO SHOW THESE AS FULL LATERE
+      }
+      var opt = document.createElement('option');
+
+      opt.setAttribute('value', keys[i]);
+      opt.innerHTML = keys[i] + ' : ' + data[keys[i]].roomCount;
+      select.appendChild(opt);
+    }
   });
 };
 
@@ -292,6 +373,14 @@ var keyUpHandler = function keyUpHandler(e) {
   }
 };
 
+var onStart = function onStart(sock) {
+  var socket = sock;
+
+  socket.on('start', function () {
+    gameRunning = true;
+  });
+};
+
 var init = function init() {
   var canvas = document.querySelector('canvas');
   canvas.width = 520;
@@ -304,9 +393,78 @@ var init = function init() {
 
   var socket = io.connect();
 
+  var select = document.querySelector('select');
+  var lobbyButton = document.querySelector('#lobbyButton');
+  var createButton = document.querySelector('#createRoomButton');
+  var readyButton = document.querySelector('#ready');
+  var leaveButton = document.querySelector('#leave');
+
+  var nameText = document.querySelector('#roomName');
+
+  for (var i = 0; i < sections.length; i++) {
+    sections[i] = document.querySelector('#' + sections[i]);
+  }
+
+  leaveButton.addEventListener('click', function (e) {
+    socket.emit('leave', {});
+    setVisible(LOADING);
+    resetVars();
+
+    e.preventDefault(true);
+    return false;
+  });
+
+  readyButton.addEventListener('click', function (e) {
+    if (ready) {
+      return false;
+    }
+    socket.emit('ready', {});
+    ready = true;
+
+    e.preventDefault(true);
+    return false;
+  });
+
+  createButton.addEventListener('click', function (e) {
+    if (nameText.value === "") {
+      return false;
+    }
+
+    console.log(nameText.value);
+    socket.emit('create', { room: nameText.value });
+    setVisible(LOADING);
+    nameText.value = "";
+
+    e.preventDefault(true);
+    return false;
+  });
+
+  lobbyButton.addEventListener('click', function (e) {
+    setVisible(LOADING);
+    socket.emit('lobby', {});
+
+    e.preventDefault(true);
+    return false;
+  });
+
+  select.onchange = function (e) {
+    var val = e.target.value;
+
+    if (!val || val === '') {
+      return;
+    }
+
+    socket.emit('joinRoom', { room: val });
+    setVisible(LOADING);
+  };
+
   socket.on('connect', function () {
-    onJoin(socket, canvas);
+    onLobby(socket, select);
+    onJoin(socket);
+    onLoad(socket, canvas);
     onFull(socket);
+    onStart(socket);
+    onErr(socket);
     onMove(socket);
     onWin(socket);
     onLose(socket);
