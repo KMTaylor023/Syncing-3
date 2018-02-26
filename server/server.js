@@ -4,23 +4,17 @@ const url = require('url');
 const socketio = require('socket.io');
 const mazeHandler = require('./mazeMaker.js');
 
-const MAX_ROOM_SIZE = 2;
+const MAX_ROOM_SIZE = 4;
 
-
-let roomCount = 0;
-
+const roomlist = {};
 const rooms = {};
+
 
 const port = process.env.PORT || process.env.NODE_PORT || 3000;
 
 const index = fs.readFileSync(`${__dirname}/../hosted/index.html`);
 const bundle = fs.readFileSync(`${__dirname}/../hosted/bundle.js`);
 
-let maze;
-
-mazeHandler.createMaze(17, 17).then((m) => {
-  maze = m;
-});
 
 const onRequest = (request, response) => {
   const parsedURL = url.parse(request.url);
@@ -45,35 +39,114 @@ console.log(`Listening on 127.0.0.1:${port}`);
 const io = socketio(app);
 
 
-// joins socket to a room
-// Doesn't need to be a promise, but probably will
-// room creation will require waiting while new mazes are made
-const joinRoom = sock => new Promise((resolve, fail) => {
+const loadMaze = (sock, roomName) =>{
   const socket = sock;
-  if (roomCount < MAX_ROOM_SIZE) {
-    roomCount++;
+  
+  if(!roomName){
+    return socketErr(socket,"No room exists by that name");
+  }
+  
+  
+  
+  if(rooms[roomName].maze){
+    socket.emit('load', {maze:rooms[roomName].maze});
+  }
+  else{
+    let id;
+    
+    id = setInterval(() =>{
+      if(rooms[roomName].maze){
+        socket.emit('load', {maze:rooms[roomName].maze});
+        clearInterval(id);
+      }
+    },10);
+  }
+  
+};
+
+const enterLobby = (sock) =>{
+  const socket = sock;
+  
+  socket.emit('lobby', roomlist);
+};
+
+const onCreate = (sock) =>{
+  const socket = sock;
+  
+  socket.on('create', (data) =>{
+    
+    if(!data.room){
+      return;//no error message, had to cheat to get here
+    }
+    
+    if(rooms[data.room]){
+      socketErr(socket,"Room name already exists");
+      return;
+    }
+    
+    rooms[data.room] = {};
+    roomlist[roomName] = {roomCount:1};
+    
+    rooms[data.room][0] = socket;
+    
+    mazeHandler.createMaze(17, 17).then((m) => {
+      rooms[data.room].maze = m;
+    });
+    
+    joinRoom(socket,data.room);
+  });
+};
+
+//small function, but now i'll never mispell err
+const socketErr = (sock, msg) =>{
+  socket.emit('err', {msg});
+};
+
+const onJoinRoom = (sock) =>{
+  const socket = sock;
+  
+  socket.on('joinRoom', (data) =>{
+    if(!data || !data.room){
+      return socketErr(socket,"No room name given");
+    }
+    
+    joinRoom(socket,data.room);
+  })
+}
+
+// joins socket to a room
+// room creation will require waiting while new mazes are made
+const joinRoom = (sock, roomName) =>{
+  const socket = sock;
+  
+  if(!rooms[roomName]){
+    return socketErr(socket, "Room not found");
+  }
+  
+  const room = rooms[roomName];
+  const roomData = roomlist[roomName];
+  
+  if (roomData.roomCount < MAX_ROOM_SIZE) {
+    roomData.roomCount++;
   } else {
-    socket.emit('full', {});
-    fail();
+    return socket.emit('full', {});
   }
 
 
-  socket.join('room1');
-  socket.roomString = 'room1';
-  rooms.room1 = rooms.room1 || {};
-  const room = rooms.room1;
+  socket.join(roomName);
+  socket.roomString = roomName;
+  
   for (let i = 0; i < MAX_ROOM_SIZE; i++) {
     if (!room[i]) {
       room[i] = socket;
       socket.playerPos = i;
-      socket.emit('join', { player: socket.playerPos, maze });
-      resolve();
-      break;
+      socket.emit('join', { player: i });
+      return loadMaze(socket,roomName);
     }
   }
-
-  fail();
-});
+  //i'm not sure why the code would get here
+  return socket.emit('full', {});
+};
 
 // Currently only a small amount of validation is done here
 // don't actually check if the player is cheating, just make sure
@@ -154,15 +227,13 @@ io.sockets.on('connection', (sock) => {
     socket.isJoined = true;
   }
 
-  joinRoom(socket).then(() => {
-    console.log(`player ${socket.playerPos} joined`);
-    onMove(socket);
-    onWin(socket);
-    onDisconnect(socket);
-  }).catch(() => {
-    socket.disconnect(true);
-    delete socket.isJoined;
-  });
+  enterLobby(socket);
+  
+  onCreate(socket);
+  onJoinRoom(socket);
+  onMove(socket);
+  onWin(socket);
+  onDisconnect(socket);
 
   console.log('attempt');
 });
