@@ -1,6 +1,6 @@
 
-const INVERTED = [2,3,0,1];
-const INCREMENTED = [1,2,3,0];
+const INVERTED = [2, 3, 0, 1];
+const INCREMENTED = [1, 2, 3, 0];
 
 const getRandomInt = maxExclusive => Math.floor(Math.random() * maxExclusive);
 

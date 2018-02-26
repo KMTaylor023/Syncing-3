@@ -18,9 +18,8 @@ const bundle = fs.readFileSync(`${__dirname}/../hosted/bundle.js`);
 
 let maze;
 
-mazeHandler.createMaze(17,17).then((m) => {
+mazeHandler.createMaze(17, 17).then((m) => {
   maze = m;
-  console.log(maze);
 });
 
 const onRequest = (request, response) => {
@@ -29,6 +28,9 @@ const onRequest = (request, response) => {
   if (parsedURL.pathname === '/bundle.js') {
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.write(bundle);
+  } else if (parsedURL.pathname === '/reset.js') {
+    delete rooms.room1;
+    roomCount--;
   } else {
     response.writeHead(200, { 'Content-Type': 'text/html' });
     response.write(index);
@@ -79,17 +81,13 @@ const joinRoom = sock => new Promise((resolve, fail) => {
 const validatePos = (sock, data) => {
   const socket = sock;
 
-  const newData = { fail: true };
+  const newData = {};
 
-  if (!data.x || !data.y) {
-    return newData;
-  }
 
   newData.x = parseFloat(data.x);
   newData.y = parseFloat(data.y);
-
   if (Number.isNaN(newData.x) || Number.isNaN(newData.y)) {
-    return newData;
+    return {};
   }
 
   newData.timestamp = new Date().getTime();
@@ -104,10 +102,10 @@ const onMove = (sock) => {
 
   socket.on('move', (data) => {
     const newData = validatePos(socket, data);
-
+    /*
     if (newData.fail) {
       return;
-    }
+    } */
 
     socket.broadcast.to(socket.roomString).emit('move', newData);
   });
@@ -124,6 +122,10 @@ const onWin = (sock) => {
 
     socket.broadcast.to(socket.roomString).emit('lose', { winner: socket.playerPos });
     socket.emit('win', {});
+    mazeHandler.createMaze(17, 17).then((m) => {
+      maze = m;
+    });
+    delete rooms.room1;
   });
 };
 
@@ -133,11 +135,12 @@ const onDisconnect = (sock) => {
   socket.on('disconnect', () => {
     if (socket.roomString) {
       socket.leave(socket.roomString);
-      delete rooms[socket.roomString][socket.playerPos];
-      console.dir(rooms[socket.roomString]);
+      if(rooms[socket.roomString])
+        delete rooms[socket.roomString][socket.playerPos];
       delete socket.playerPos;
       delete socket.roomString;
       delete socket.isJoined;
+      roomCount--;
     }
   });
 };
@@ -145,9 +148,9 @@ const onDisconnect = (sock) => {
 // Sets up the socket message handlers
 io.sockets.on('connection', (sock) => {
   const socket = sock;
-  
-  
-  if(!socket.isJoined){
+
+
+  if (!socket.isJoined) {
     socket.isJoined = true;
   }
 

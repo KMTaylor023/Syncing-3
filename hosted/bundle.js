@@ -1,3 +1,5 @@
+'use strict';
+
 /* eslint-env browser */
 /* global io */
 /* eslint no-bitwise: ["error", { "allow": ["|=",">>","&"] }] */
@@ -6,85 +8,84 @@
 // also i *needed* bitwise
 
 
-const players = [];
+var players = [];
 
-const MOVE_FRAME_WAIT = 20;
-const P_SIZE = 20;
-const MAZE_SQUARE_SIZE = 30;
-const MAZE_PAD = (MAZE_SQUARE_SIZE - P_SIZE) / 2;
+var MOVE_FRAME_WAIT = 20;
+var P_SIZE = 20;
+var MAZE_SQUARE_SIZE = 30;
+var MAZE_PAD = (MAZE_SQUARE_SIZE - P_SIZE) / 2;
 
+var LEFT = 0;
+var UP = 1;
+var RIGHT = 2;
+var DOWN = 3;
 
-const LEFT = 0;
-const UP = 1;
-const RIGHT = 2;
-const DOWN = 3;
-
-const mazeCanvas = document.createElement('canvas');
-const mazeCtx = mazeCanvas.getContext('2d');
+var mazeCanvas = document.createElement('canvas');
+var mazeCtx = mazeCanvas.getContext('2d');
 
 // left,  up,    right,  down
-const move = [false, false, false, false];
+var move = [false, false, false, false];
 
-let playerNum = -1;
+var playerNum = -1;
 
-let maze;
+var maze = void 0;
 
-let moveFrames = MOVE_FRAME_WAIT;
+var moveFrames = MOVE_FRAME_WAIT;
 
-let helpTextTag;
+var helpTextTag = void 0;
 
-let tryWin = false;
-let gameRunning = true;
+var tryWin = false;
+var gameRunning = true;
 // const ready = false;
 
-const onLose = (sock) => {
-  const socket = sock;
+var onLose = function onLose(sock) {
+  var socket = sock;
 
-  socket.on('lose', (data) => {
-    helpTextTag.innerHTML = `YOU LOST TO PLAYER ${data.winner + 1}!! :c`;
+  socket.on('lose', function (data) {
+    helpTextTag.innerHTML = 'YOU LOST TO PLAYER ' + (data.winner + 1) + '!! :c';
     helpTextTag.style.color = 'red';
     gameRunning = false;
     tryWin = true;
   });
 };
 
-const onWin = (sock) => {
-  const socket = sock;
+var onWin = function onWin(sock) {
+  var socket = sock;
 
-  socket.on('win', () => {
+  socket.on('win', function () {
     helpTextTag.innerHTML = 'YOU WON!!';
     helpTextTag.style.color = 'blue';
     gameRunning = false;
   });
 };
 
-const updatePlayer = (number, data) => {
+var updatePlayer = function updatePlayer(number, data) {
   if (!players[number]) {
     players[number] = {};
   }
-  const player = players[number];
-
+  var player = players[number];
 
   // TODO could lerp here
   player.x = data.x;
   player.y = data.y;
 };
 
-const onMove = (sock) => {
-  const socket = sock;
-  socket.on('move', (data) => {
-    if (gameRunning) { updatePlayer(data.playerPos, data); }
+var onMove = function onMove(sock) {
+  var socket = sock;
+  socket.on('move', function (data) {
+    if (gameRunning) {
+      updatePlayer(data.playerPos, data);
+    }
   });
 };
 
-const addPlayer = (number) => {
+var addPlayer = function addPlayer(number) {
   players[number] = {
     x: 0,
     y: 0,
     width: P_SIZE,
-    height: P_SIZE,
+    height: P_SIZE
   };
-
 
   // sets up corners
   if (number > 1) {
@@ -96,23 +97,23 @@ const addPlayer = (number) => {
 };
 
 // Updates position, returns true if player is now in win spot
-const updatePosition = (sock) => {
-  const socket = sock;
-  const me = players[playerNum];
-  const mazePos = maze[me.y][me.x];
+var updatePosition = function updatePosition(sock) {
+  var socket = sock;
+  var me = players[playerNum];
+  var mazePos = maze[me.y][me.x];
 
   if (moveFrames === MOVE_FRAME_WAIT) {
-    let moved = false;
+    var moved = false;
     // loops through all possible directions to move
     // exits loop if one direction is true
     // order is defined by the UP, DOWN, LEFT, RIGHT globals
-    for (let i = 0; i < 4; i++) {
+    for (var i = 0; i < 4; i++) {
       if (move[i]) {
         moved = true;
         // shifts bit over by i, then ands bits with 1
         // checks if the bit for this direction is set to 1
         // bit meaning 1:L 2:U 4:R 8:D
-        if (((mazePos >> i) & 1) === 1) {
+        if ((mazePos >> i & 1) === 1) {
           switch (i) {
             case 0:
               me.x--;
@@ -145,49 +146,41 @@ const updatePosition = (sock) => {
   return false;
 };
 
-const drawPlayer = (playnum, ctx, color) => {
-  const player = players[playnum];
+var drawPlayer = function drawPlayer(playnum, ctx, color) {
+  var player = players[playnum];
   if (!player) {
     return;
   }
   ctx.save();
   ctx.fillStyle = color;
-  ctx.fillRect(
-    (player.x * MAZE_SQUARE_SIZE) + (MAZE_PAD),
-    (player.y * MAZE_SQUARE_SIZE) + (MAZE_PAD),
-    P_SIZE,
-    P_SIZE,
-  );
+  ctx.fillRect(player.x * MAZE_SQUARE_SIZE + MAZE_PAD, player.y * MAZE_SQUARE_SIZE + MAZE_PAD, P_SIZE, P_SIZE);
   ctx.restore();
 };
 
-
 // draws the maze to the mazeCtx
-const drawMaze = () => {
+var drawMaze = function drawMaze() {
   mazeCtx.fillStyle = 'black';
   mazeCtx.fillRect(0, 0, mazeCanvas.width, mazeCanvas.height);
   mazeCtx.fillStyle = 'white';
 
+  var yPos = 0;
 
-  let yPos = 0;
-
-  for (let y = 0; y < maze.length; y++) {
-    let xPos = 0;
-    for (let x = 0; x < maze[y].length; x++) {
-      let mazePos = maze[y][x];
+  for (var y = 0; y < maze.length; y++) {
+    var xPos = 0;
+    for (var x = 0; x < maze[y].length; x++) {
+      var mazePos = maze[y][x];
       if (mazePos < 0) {
         mazeCtx.fillStyle = 'green';
         mazePos = -mazePos;
       }
       mazeCtx.fillRect(xPos + MAZE_PAD, yPos + MAZE_PAD, P_SIZE, P_SIZE);
 
-
-      for (let i = 0; i < 4; i++) {
+      for (var i = 0; i < 4; i++) {
         // shifts bit over by i, then ands bits with 1
         // checks if the bit for this direction is set to 1
         // if so, draws a rect in that direction for the maze
         // bit meaning 1:L 2:U 4:R 8:D
-        if (((mazePos >> i) & 1) === 1) {
+        if ((mazePos >> i & 1) === 1) {
           switch (i) {
             case 0:
               mazeCtx.fillRect(xPos, yPos + MAZE_PAD, MAZE_PAD, P_SIZE);
@@ -213,7 +206,7 @@ const drawMaze = () => {
   }
 };
 
-const redraw = (time, socket, canvas, ctx) => {
+var redraw = function redraw(time, socket, canvas, ctx) {
   if (!tryWin) {
     tryWin = updatePosition(socket);
     if (tryWin) {
@@ -223,12 +216,11 @@ const redraw = (time, socket, canvas, ctx) => {
     }
   }
 
-
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.drawImage(mazeCanvas, 0, 0);
 
-  for (let i = 0; i < players.length; i++) {
+  for (var i = 0; i < players.length; i++) {
     if (i !== playerNum) {
       drawPlayer(i, ctx, 'red');
     }
@@ -236,39 +228,43 @@ const redraw = (time, socket, canvas, ctx) => {
   // draw us on top
   drawPlayer(playerNum, ctx, 'blue');
 
-  requestAnimationFrame(t => redraw(t, socket, canvas, ctx));
+  requestAnimationFrame(function (t) {
+    return redraw(t, socket, canvas, ctx);
+  });
 };
 
-const onJoin = (sock, canvas) => {
-  const socket = sock;
+var onJoin = function onJoin(sock, canvas) {
+  var socket = sock;
 
-  socket.on('join', (data) => {
+  socket.on('join', function (data) {
     if (playerNum > -1) {
       return;
     }
     playerNum = data.player;
 
-    ({ maze } = data);
+    maze = data.maze;
+
     addPlayer(playerNum, canvas);
     drawMaze();
 
     // TODO add ready button
 
-    requestAnimationFrame(time => redraw(time, socket, canvas, canvas.getContext('2d')));
+    requestAnimationFrame(function (time) {
+      return redraw(time, socket, canvas, canvas.getContext('2d'));
+    });
   });
 };
 
-const onFull = (sock) => {
-  const socket = sock;
+var onFull = function onFull(sock) {
+  var socket = sock;
 
-  socket.on('full', () => {
+  socket.on('full', function () {
     // TODO something about how you didn't join, idk, not important right now
   });
 };
 
-
-const keyDownHandler = (e) => {
-  const keyPressed = e.which;
+var keyDownHandler = function keyDownHandler(e) {
+  var keyPressed = e.which;
   if (keyPressed === 87 || keyPressed === 38) {
     move[UP] = true;
   } else if (keyPressed === 65 || keyPressed === 37) {
@@ -283,8 +279,8 @@ const keyDownHandler = (e) => {
   }
 };
 
-const keyUpHandler = (e) => {
-  const keyPressed = e.which;
+var keyUpHandler = function keyUpHandler(e) {
+  var keyPressed = e.which;
   if (keyPressed === 87 || keyPressed === 38) {
     move[UP] = false;
   } else if (keyPressed === 65 || keyPressed === 37) {
@@ -296,8 +292,8 @@ const keyUpHandler = (e) => {
   }
 };
 
-const init = () => {
-  const canvas = document.querySelector('canvas');
+var init = function init() {
+  var canvas = document.querySelector('canvas');
   canvas.width = 520;
   canvas.height = 520;
   mazeCanvas.width = 520;
@@ -306,16 +302,15 @@ const init = () => {
 
   helpTextTag = document.querySelector('#helpText');
 
-  const socket = io.connect();
+  var socket = io.connect();
 
-  socket.on('connect', () => {
+  socket.on('connect', function () {
     onJoin(socket, canvas);
     onFull(socket);
     onMove(socket);
     onWin(socket);
     onLose(socket);
   });
-
 
   document.body.addEventListener('keydown', keyDownHandler);
   document.body.addEventListener('keyup', keyUpHandler);
