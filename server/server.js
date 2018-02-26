@@ -14,6 +14,7 @@ const port = process.env.PORT || process.env.NODE_PORT || 3000;
 
 const index = fs.readFileSync(`${__dirname}/../hosted/index.html`);
 const bundle = fs.readFileSync(`${__dirname}/../hosted/bundle.js`);
+const style = fs.readFileSync(`${__dirname}/../hosted/style.css`);
 
 
 const onRequest = (request, response) => {
@@ -22,9 +23,9 @@ const onRequest = (request, response) => {
   if (parsedURL.pathname === '/bundle.js') {
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.write(bundle);
-  } else if (parsedURL.pathname === '/reset.js') {
-    delete rooms.room1;
-    roomCount--;
+  } else if (parsedURL.pathname === "./style.css"){
+    response.writeHead(200, { 'Content-Type': 'text/css' });
+    response.write(style);
   } else {
     response.writeHead(200, { 'Content-Type': 'text/html' });
     response.write(index);
@@ -39,93 +40,56 @@ console.log(`Listening on 127.0.0.1:${port}`);
 const io = socketio(app);
 
 
-const loadMaze = (sock, roomName) =>{
+// small function, but now i'll never mispell err
+const socketErr = (sock, msg) => {
   const socket = sock;
-  
-  if(!roomName){
-    return socketErr(socket,"No room exists by that name");
-  }
-  
-  
-  
-  if(rooms[roomName].maze){
-    socket.emit('load', {maze:rooms[roomName].maze});
-  }
-  else{
-    let id;
-    
-    id = setInterval(() =>{
-      if(rooms[roomName].maze){
-        socket.emit('load', {maze:rooms[roomName].maze});
-        clearInterval(id);
-      }
-    },10);
-  }
-  
+
+  socket.emit('err', { msg });
 };
 
-const enterLobby = (sock) =>{
+
+const loadMaze = (sock, roomName) => {
   const socket = sock;
-  
+
+  if (!roomName) {
+    socketErr(socket, 'No room exists by that name');
+    return;
+  }
+
+
+  if (rooms[roomName].maze) {
+    socket.emit('load', { maze: rooms[roomName].maze });
+    return;
+  }
+
+  const id = setInterval(() => {
+    if (rooms[roomName].maze) {
+      clearInterval(id);
+      socket.emit('load', { maze: rooms[roomName].maze });
+    }
+  }, 10);
+};
+
+const enterLobby = (sock) => {
+  const socket = sock;
+
   socket.emit('lobby', roomlist);
-};
 
-const onCreate = (sock) =>{
-  const socket = sock;
-  
-  socket.on('create', (data) =>{
-    
-    if(!data.room){
-      return;//no error message, had to cheat to get here
-    }
-    
-    if(rooms[data.room]){
-      socketErr(socket,"Room name already exists");
-      return;
-    }
-    
-    rooms[data.room] = {};
-    roomlist[roomName] = {roomCount:1};
-    
-    rooms[data.room][0] = socket;
-    
-    mazeHandler.createMaze(17, 17).then((m) => {
-      rooms[data.room].maze = m;
-    });
-    
-    joinRoom(socket,data.room);
-  });
+  socket.roomString = 'lobby';
 };
-
-//small function, but now i'll never mispell err
-const socketErr = (sock, msg) =>{
-  socket.emit('err', {msg});
-};
-
-const onJoinRoom = (sock) =>{
-  const socket = sock;
-  
-  socket.on('joinRoom', (data) =>{
-    if(!data || !data.room){
-      return socketErr(socket,"No room name given");
-    }
-    
-    joinRoom(socket,data.room);
-  })
-}
 
 // joins socket to a room
 // room creation will require waiting while new mazes are made
-const joinRoom = (sock, roomName) =>{
+const joinRoom = (sock, roomName) => {
   const socket = sock;
-  
-  if(!rooms[roomName]){
-    return socketErr(socket, "Room not found");
+
+  if (!rooms[roomName]) {
+    return socketErr(socket, 'Room not found');
   }
-  
+
   const room = rooms[roomName];
   const roomData = roomlist[roomName];
-  
+
   if (roomData.roomCount < MAX_ROOM_SIZE) {
     roomData.roomCount++;
   } else {
@@ -135,17 +99,101 @@ const joinRoom = (sock, roomName) =>{
 
   socket.join(roomName);
   socket.roomString = roomName;
-  
+
+  socket.join(roomName);
+
   for (let i = 0; i < MAX_ROOM_SIZE; i++) {
     if (!room[i]) {
       room[i] = socket;
       socket.playerPos = i;
       socket.emit('join', { player: i });
-      return loadMaze(socket,roomName);
+      return loadMaze(socket, roomName);
     }
   }
-  //i'm not sure why the code would get here
+  // i'm not sure why the code would get here
   return socket.emit('full', {});
+};
+
+const leaveRoom = (sock, noLobby) => {
+  const socket = sock;
+
+  if (!socket.roomString || rooms[socket.roomString] || !socket.playerPos) {
+    return;
+  }
+
+  const s = socket.roomString;
+  const room = rooms[s];
+  const n = socket.playerPos;
+
+  // should probably do hashes
+  if (!room[n]) {
+    return;
+  }
+
+  delete room[n];
+  delete socket.playerPos;
+
+  roomlist[s].roomCount--;
+
+  socket.leave(socket.roomString);
+
+  delete socket.roomString;
+
+  if (noLobby === true) {
+    return;
+  }
+
+  enterLobby(socket);
+};
+
+const onLeave = (sock) => {
+  const socket = sock;
+
+  socket.on('leave', () => {
+    if (!socket.roomString || socket.roomString === 'lobby') {
+      return;
+    }
+
+    leaveRoom(socket);
+  });
+};
+
+const onCreate = (sock) => {
+  const socket = sock;
+
+  socket.on('create', (data) => {
+    if (!data.room) {
+      return;// no error message, had to cheat to get here
+    }
+
+    if (rooms[data.room] || data.room === 'lobby') {
+      socketErr(socket, 'Room name already exists');
+      return;
+    }
+
+    rooms[data.room] = {};
+    roomlist[data.room] = { roomCount: 1 };
+
+    rooms[data.room][0] = socket;
+
+    mazeHandler.createMaze(17, 17).then((m) => {
+      rooms[data.room].maze = m;
+    });
+
+    joinRoom(socket, data.room);
+  });
+};
+
+const onJoinRoom = (sock) => {
+  const socket = sock;
+
+  socket.on('joinRoom', (data) => {
+    if (!data || !data.room) {
+      return socketErr(socket, 'No room name given');
+    }
+
+    return joinRoom(socket, data.room);
+  });
 };
 
 // Currently only a small amount of validation is done here
@@ -195,10 +243,42 @@ const onWin = (sock) => {
 
     socket.broadcast.to(socket.roomString).emit('lose', { winner: socket.playerPos });
     socket.emit('win', {});
-    mazeHandler.createMaze(17, 17).then((m) => {
-      maze = m;
-    });
-    delete rooms.room1;
+    delete rooms[socket.roomString].running;
+  });
+};
+
+
+const startGame = (room) => {
+  io.to(room).emit('start', {});
+  delete rooms[room].readyCount;
+  rooms[room].running = true;
+};
+
+const onReady = (sock) => {
+  const socket = sock;
+
+  socket.on('ready', () => {
+    const s = socket.roomString;
+
+    if (!s || !rooms[socket.roomString]) {
+      return;
+    }
+
+    if (socket.ready) {
+      return;
+    }
+
+    socket.ready = true;
+
+    if (!rooms[s].readyCount) {
+      rooms[s].readyCount = 0;
+    }
+
+    rooms[s].readyCount++;
+
+    if (rooms[s].roomCount > 1 && rooms[s].roomCount === rooms[s].readyCount) {
+      startGame(socket.roomString);
+    }
   });
 };
 
@@ -206,14 +286,14 @@ const onDisconnect = (sock) => {
   const socket = sock;
 
   socket.on('disconnect', () => {
+    leaveRoom(socket, true);
+
     if (socket.roomString) {
       socket.leave(socket.roomString);
-      if(rooms[socket.roomString])
-        delete rooms[socket.roomString][socket.playerPos];
+      if (rooms[socket.roomString]) { delete rooms[socket.roomString][socket.playerPos]; }
       delete socket.playerPos;
       delete socket.roomString;
       delete socket.isJoined;
-      roomCount--;
     }
   });
 };
@@ -228,8 +308,10 @@ io.sockets.on('connection', (sock) => {
   }
 
   enterLobby(socket);
-  
+
   onCreate(socket);
+  onLeave(socket);
+  onReady(socket);
   onJoinRoom(socket);
   onMove(socket);
   onWin(socket);

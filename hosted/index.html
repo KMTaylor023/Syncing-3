@@ -1,11 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="stylesheet" href="./styles.css">
     <script src="/socket.io/socket.io.js"></script>
     <script src="bundle.js"></script>
 </head>
 <body>
-<canvas></canvas>
-<p id="helpText"></p>
+<div id="lobby">
+  <select id='lobbies'></select>
+</div>
+<div id="game">
+  <canvas></canvas>
+  <button type="button" id="ready">Ready Up</button>
+  <button type="button" id="leave">Leave</button>
+</div>
+<div id="loading">
+  <h1>loading</h1>
+</div>
 </body>
 </html>

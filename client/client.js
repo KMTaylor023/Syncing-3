@@ -239,6 +239,10 @@ const redraw = (time, socket, canvas, ctx) => {
   requestAnimationFrame(t => redraw(t, socket, canvas, ctx));
 };
 
+const setVisible = (visible) =>{
+  
+}
+
 const onJoin = (sock, canvas) => {
   const socket = sock;
 
@@ -246,6 +250,9 @@ const onJoin = (sock, canvas) => {
     if (playerNum > -1) {
       return;
     }
+    
+    setVisible('game');
+    
     playerNum = data.player;
 
     ({ maze } = data);
@@ -263,6 +270,26 @@ const onFull = (sock) => {
 
   socket.on('full', () => {
     // TODO something about how you didn't join, idk, not important right now
+  });
+};
+
+const onLobby = (sock) =>{
+  const socket = sock;
+  
+  socket.on('lobby', (data) =>{
+    setVisible('lobby');
+    
+    const keys = Object.keys(data);
+    for(let i = 0; i < keys.length; i++){
+      
+      if(data[keys[i]].roomCount >= 4){
+        return;//TODO SHOW THESE AS FULL LATERE
+      }
+      const opt = document.createElement('option');
+      
+      opt.setAttribute('value', keys[i]);
+      opt.innerHTML = `${keys[i]} : ${data[keys[i]].roomCount}`;
+    }
   });
 };
 
@@ -296,6 +323,8 @@ const keyUpHandler = (e) => {
   }
 };
 
+
+
 const init = () => {
   const canvas = document.querySelector('canvas');
   canvas.width = 520;
@@ -308,9 +337,13 @@ const init = () => {
 
   const socket = io.connect();
 
+  const select = document.querySelector('select');
+  
   socket.on('connect', () => {
+    onLobby(socket);
     onJoin(socket, canvas);
     onFull(socket);
+    onErr(socket);
     onMove(socket);
     onWin(socket);
     onLose(socket);
