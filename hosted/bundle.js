@@ -426,14 +426,14 @@ var init = function init() {
   });
 
   createButton.addEventListener('click', function (e) {
-    if (nameText.value === "") {
+    if (nameText.value === '') {
       return false;
     }
 
     console.log(nameText.value);
     socket.emit('create', { room: nameText.value });
     setVisible(LOADING);
-    nameText.value = "";
+    nameText.value = '';
 
     e.preventDefault(true);
     return false;
