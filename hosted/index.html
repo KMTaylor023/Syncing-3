@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans|Orbitron:700" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     <script src="/socket.io/socket.io.js"></script>
     <script src="bundle.js"></script>
@@ -12,7 +13,7 @@
     </header>
     <div id="lobby">
       <div id='joinroom'>
-        <h3>Click to Join Room</h3>
+        <h3 id='joinh'>Click to Join Room</h3>
         <ul id='lobbies'></ul>
       </div>
       <div id='createroom'>
@@ -23,10 +24,12 @@
     </div>
     <div id="game">
       <p id='roomp'></p>
-      <canvas></canvas>
-      <button type="button" id="ready">Ready</button>
-      <button type="button" id="again">Reset</button>
-      <button type="button" id="leave">Leave</button>
+      <canvas id='gameCanvas'></canvas>
+      <div id="buttonDiv">
+        <button type="button" id="ready">Ready</button>
+        <button type="button" id="again">Reset</button>
+        <button type="button" id="leave">Leave</button>
+      </div>
       <p id="helpText"></p>
     </div>
     <div id="loading">

@@ -1,11 +1,3 @@
-/* eslint-env browser */
-/* global io */
-/* eslint no-bitwise: ["error", { "allow": ["|=",">>","&"] }] */
-// previous comments are to set up eslint for browser use
-// I wanted to eslint the browser code for my own sanity
-// also i *needed* bitwise
-
-
 const players = {};
 
 const MOVE_FRAME_WAIT = 20;
@@ -46,8 +38,9 @@ let ready = false;
 let tryWin = false;
 let gameRunning = false;
 
+// +++++++ Key handlers deal with setting player direction when game is running
 const keyDownHandler = (e) => {
-  if(!maze){
+  if (!maze) {
     return;
   }
   const keyPressed = e.which;
@@ -66,7 +59,7 @@ const keyDownHandler = (e) => {
 };
 
 const keyUpHandler = (e) => {
-  if(!maze){
+  if (!maze) {
     return;
   }
   const keyPressed = e.which;
@@ -80,8 +73,9 @@ const keyUpHandler = (e) => {
     move[RIGHT] = false;
   }
 };
+// -------
 
-
+// Updates a plyers position
 const updatePlayer = (number, data) => {
   if (!players[number]) {
     players[number] = {};
@@ -94,6 +88,8 @@ const updatePlayer = (number, data) => {
   player.y = data.y;
 };
 
+
+// sets the pplayer number square up
 const addPlayer = (number) => {
   players[number] = {
     x: 0,
@@ -102,45 +98,52 @@ const addPlayer = (number) => {
     height: P_SIZE,
   };
 
-
   // sets up corners
-  if (number > 1) {
+  if (+number > 1) {
     players[number].y = 16;
   }
-  if (number === 0 || number === 2) {
+  if (+number === 0 || +number === 2) {
     players[number].x = 16;
   }
-  
-  
 };
 
+// resets the current game state
 const resetGame = () => {
   const playKeys = Object.keys(players);
-  
-  for(let i = 0; i < playKeys.length; i++) {
+  for (let i = 0; i < playKeys.length; i++) {
     addPlayer(playKeys[i]);
   }
-  
+
+  for (let i = 0; i < 4; i++) {
+    move[i] = false;
+  }
+
+  helpTextTag.className = '';
+
+  helpTextTag.innerHTML = 'Ready Up!';
+
   document.querySelector('#again').style.display = 'none';
-  
+
   gameRunning = false;
   ready = false;
   tryWin = false;
   moveFrames = MOVE_FRAME_WAIT;
-}
+};
 
-const exitGame = () =>{
+
+// exists the game, removes all game state vars
+const exitGame = () => {
   const playKeys = Object.keys(players);
-  
-  for(let i = 0; i < playKeys.length; i++) {
+
+  for (let i = 0; i < playKeys.length; i++) {
     delete players[playKeys[i]];
   }
-  
+
   resetGame();
-  
+
   maze = undefined;
   playerNum = -1;
-}
+};
 
 // Updates position, returns true if player is now in win spot
 const updatePosition = (sock) => {
@@ -184,7 +187,7 @@ const updatePosition = (sock) => {
     }
     if (moved) {
       moveFrames = 0;
-      socket.emit('move', {playerPos: playerNum, x: me.x, y: me.y });
+      socket.emit('move', { playerPos: playerNum, x: me.x, y: me.y });
     }
   } else {
     moveFrames++;
@@ -196,6 +199,7 @@ const updatePosition = (sock) => {
   return false;
 };
 
+// draws a player
 const drawPlayer = (playnum, ctx, color) => {
   const player = players[playnum];
   if (!player) {
@@ -212,48 +216,54 @@ const drawPlayer = (playnum, ctx, color) => {
   ctx.restore();
 };
 
-
-const roomclick = (e,sock)=> {
-    const socket = sock;
-    e.preventDefault(true);
-    if(e.target.className === 'full'){
-      return false;
-    }
-    
-    const room = e.target.getAttribute('room');
-    
-    setVisible(LOADING);
-    socket.emit('joinRoom', { room });
-    
+// the click handler for the rooom joins
+const roomclick = (e, sock) => {
+  const socket = sock;
+  e.preventDefault(true);
+  if (e.target.className === 'full') {
     return false;
-}
+  }
 
+  const room = e.target.getAttribute('room');
 
+  setVisible(LOADING);
+  socket.emit('joinRoom', { room });
+
+  return false;
+};
+
+// sets up the lobby list
 const setupLobby = (ul, sock) => {
-  
   const keys = Object.keys(gamelist);
-  
-  const click = (e) => roomclick(e,sock);
-  
-  for(let i = 0; i < keys.length; i++) {
-    if(gamelist[keys[i]].element){
+
+  if (keys.length === 0) {
+    document.querySelector('#joinh').style.display = 'none';
+  } else {
+    document.querySelector('#joinh').style.display = 'block';
+  }
+
+  const click = e => roomclick(e, sock);
+
+  for (let i = 0; i < keys.length; i++) {
+    if (gamelist[keys[i]].element) {
       continue;
     }
-    
+
     const li = document.createElement('li');
     const a = document.createElement('a');
-    
-    if (gamelist[keys[i]].roomCount >= 4) {
-      a.className = 'full'
-    }
-    else{
-      a.className = 'open'
+
+    const num = gamelist[keys[i]].roomCount;
+
+    if (gamelist[keys[i]].roomCount >= 4 || num < 0) {
+      a.className = 'full';
+    } else {
+      a.className = 'open';
     }
 
-    a.setAttribute('href',`#${keys[i]}`);
-    a.setAttribute('room',keys[i]);
+    a.setAttribute('href', `#${keys[i]}`);
+    a.setAttribute('room', keys[i]);
     a.onclick = click;
-    a.innerHTML = `${keys[i]} : ${gamelist[keys[i]].roomCount}/4`;
+    a.innerHTML = `${keys[i]} : ${Math.abs(gamelist[keys[i]].roomCount)}/4`;
     li.appendChild(a);
     ul.appendChild(li);
     gamelist[keys[i]].element = li;
@@ -311,16 +321,17 @@ const drawMaze = () => {
   }
 };
 
+// redraws the game
 const redraw = (time, socket, canvas, ctx) => {
-  if(!maze){
+  if (!maze) {
     return;
   }
-  
+
   if (gameRunning) {
     if (!tryWin) {
       tryWin = updatePosition(socket);
       if (tryWin) {
-        socket.emit('win', {x: players[playerNum].x, y: players[playerNum].y});
+        socket.emit('win', { x: players[playerNum].x, y: players[playerNum].y });
       }
     }
   }
@@ -343,6 +354,8 @@ const redraw = (time, socket, canvas, ctx) => {
   requestAnimationFrame(t => redraw(t, socket, canvas, ctx));
 };
 
+
+// sets a given section to visible, and others invisible
 const setVisible = (visible) => {
   for (let i = 0; i < sections.length; i++) {
     if (i === visible) {
@@ -353,33 +366,37 @@ const setVisible = (visible) => {
   }
 };
 
-const endGame = (msg, color) => {
+// sets end game message
+const endGame = (msg, classed) => {
   helpTextTag.innerHTML = msg;
-  helpTextTag.style.color = color;
-  
+  helpTextTag.className = classed;
+
   gameRunning = false;
-  
+
   document.querySelector('#again').style.display = 'inline';
 };
 
 /* +++++++++++++++++++++++++++++++ on +++++++++++++++++++ */
 
+// when a player loses the game, sets lose message
 const onLose = (sock) => {
   const socket = sock;
 
   socket.on('lose', (data) => {
-    endGame(`YOU LOST TO PLAYER ${data.winner + 1}!! :c`,'red');
+    endGame(`YOU LOST TO PLAYER ${data.winner + 1}!! :c`, 'lose');
   });
 };
 
+// when a player wins the game, sets win message
 const onWin = (sock) => {
   const socket = sock;
 
   socket.on('win', () => {
-     endGame('YOU WON!!','blue')
+    endGame('YOU WON!!', 'win');
   });
 };
 
+// moves the player given on move
 const onMove = (sock) => {
   const socket = sock;
   socket.on('move', (data) => {
@@ -387,14 +404,16 @@ const onMove = (sock) => {
   });
 };
 
+// sets up a player who has joined the room
 const onInit = (sock) => {
   const socket = sock;
-  
-  socket.on('init', (data) => {
-    updatePlayer(data.playerPos, data);
-  })
-}
 
+  socket.on('init', (data) => {
+    addPlayer(data.playerPos);
+  });
+};
+
+// loads the maze
 const onLoad = (sock, canvas) => {
   const socket = sock;
 
@@ -408,6 +427,8 @@ const onLoad = (sock, canvas) => {
   });
 };
 
+
+// joins the game, sets up plyaer position
 const onJoin = (sock) => {
   const socket = sock;
 
@@ -419,18 +440,19 @@ const onJoin = (sock) => {
     setVisible(LOADING);
 
     playerNum = data.player;
-    
+
     document.querySelector('#roomp').innerHTML = `Room: ${data.room}`;
 
     addPlayer(playerNum);
     helpTextTag.innerHTML = 'Ready Up!';
-    
+
     const me = players[playerNum];
-    
-    socket.emit('init', { x: me.x, y: me.y , playerPos: playerNum});
+
+    socket.emit('init', { playerPos: playerNum });
   });
 };
 
+// The room was full
 const onFull = (sock) => {
   const socket = sock;
 
@@ -439,49 +461,49 @@ const onFull = (sock) => {
   });
 };
 
+// showws an error
 const onErr = (sock) => {
   const socket = sock;
 
   socket.on('err', (data) => {
-    exitGame()
+    exitGame();
     setVisible(ERR);
     document.querySelector('#errMsg').innerHTML = data.msg;
   });
 };
 
+// updates the lobby when rooms change
 const onUpdateLobby = (sock, ul) => {
   const socket = sock;
-  
+
   socket.on('updateLobby', (data) => {
-    const {room} = data;
+    const { room } = data;
     let count = data.roomCount;
     let closed = false;
-    if(count < 0){
+    if (count < 0) {
       count = -count;
       closed = true;
     }
-    
-    if(count === 0 && gamelist[room]) {
-      ul.removeChild(gamelist[room].element)
+
+    if (count === 0 && gamelist[room]) {
+      ul.removeChild(gamelist[room].element);
       delete gamelist[room];
-    }
-    else if (!gamelist[room]){
-      gamelist[room] = {roomCount: count};
+    } else if (!gamelist[room]) {
+      gamelist[room] = { roomCount: count };
       setupLobby(ul, sock);
-    }
-    else{
+    } else {
       gamelist[room].roomCount = count;
       gamelist[room].element.firstChild.innerHTML = `${room} : ${count}/4`;
-      if(count === 4 || closed){
-        gamelist[room].element.firstChild.className = 'full'
-      }
-      else{
-        gamelist[room].element.firstChild.className = 'open'
+      if (count === 4 || closed) {
+        gamelist[room].element.firstChild.className = 'full';
+      } else {
+        gamelist[room].element.firstChild.className = 'open';
       }
     }
   });
-}
+};
 
+// the initial lobby setup
 const onLobby = (sock, ul) => {
   const socket = sock;
   socket.on('lobby', (data) => {
@@ -491,41 +513,52 @@ const onLobby = (sock, ul) => {
       gamelist[keys[i]] = data[keys[i]];
     }
     setupLobby(ul, sock);
-    
   });
 };
 
+// resets the game
+const onReset = (sock) => {
+  const socket = sock;
+
+  socket.on('reset', () => {
+    resetGame();
+  });
+};
+
+// starts the game
 const onStart = (sock) => {
   const socket = sock;
 
   socket.on('start', () => {
     gameRunning = true;
+    helpTextTag.innerHTML = 'Game On!';
   });
 };
 
-const onLeft = (socke) => {
+// removes given player from game
+const onLeft = (sock) => {
   const socket = sock;
-  
+
   socket.on('left', (data) => {
-    delete players[data.playerPos]
+    delete players[data.playerPos];
   });
-}
+};
 /* ------------------------------- on ------------------- */
 
-
+// sets up initial app state
 const init = () => {
   const canvas = document.querySelector('canvas');
-  canvas.width = 520;
-  canvas.height = 520;
-  mazeCanvas.width = 520;
-  mazeCanvas.height = 520;
+  canvas.width = 510;
+  canvas.height = 510;
+  mazeCanvas.width = 510;
+  mazeCanvas.height = 510;
   canvas.style.border = '1px solid blue';
 
   helpTextTag = document.querySelector('#helpText');
 
   const socket = io.connect();
 
-  const lobby = document.querySelector('#lobby');
+  const lobbyUl = document.querySelector('#lobby ul');
   const lobbyButton = document.querySelector('#lobbyButton');
   const createButton = document.querySelector('#createRoomButton');
   const readyButton = document.querySelector('#ready');
@@ -539,13 +572,13 @@ const init = () => {
   }
 
   resetButton.addEventListener('click', (e) => {
-    if(gameRunning){
+    if (gameRunning) {
       return;
     }
-    socket.emit('reset',{});
+    socket.emit('reset', {});
     resetGame();
   });
-  
+
   leaveButton.addEventListener('click', (e) => {
     socket.emit('leave', {});
     setVisible(LOBBY);
@@ -560,10 +593,10 @@ const init = () => {
     if (ready) {
       return false;
     }
-    
+
     socket.emit('ready', {});
     ready = true;
-    helpTextTag.innerHTML = "Waiting for other players";
+    helpTextTag.innerHTML = 'Waiting for other players';
     return false;
   });
 
@@ -576,7 +609,7 @@ const init = () => {
     socket.emit('create', { room: nameText.value });
     setVisible(LOADING);
     nameText.value = '';
-    
+
     return false;
   });
 
@@ -588,15 +621,17 @@ const init = () => {
   });
 
   socket.on('connect', () => {
-    onLobby(socket, lobby);
-    onUpdateLobby(socket, lobby);
+    onLobby(socket, lobbyUl);
+    onUpdateLobby(socket, lobbyUl);
     onJoin(socket);
     onLoad(socket, canvas);
     onFull(socket);
     onStart(socket);
+    onReset(socket);
     onErr(socket);
     onInit(socket);
     onMove(socket);
+    onLeft(socket);
     onWin(socket);
     onLose(socket);
   });

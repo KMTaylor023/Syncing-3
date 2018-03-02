@@ -16,7 +16,7 @@ const index = fs.readFileSync(`${__dirname}/../hosted/index.html`);
 const bundle = fs.readFileSync(`${__dirname}/../hosted/bundle.js`);
 const style = fs.readFileSync(`${__dirname}/../hosted/style.css`);
 
-
+// deals with http requests
 const onRequest = (request, response) => {
   const parsedURL = url.parse(request.url);
 
@@ -40,6 +40,19 @@ console.log(`Listening on 127.0.0.1:${port}`);
 const io = socketio(app);
 
 
+// updates the lobby for all players
+const updateLobby = (room) => {
+  if ((rooms[room].running || rooms[room].over)
+      && roomlist[room].roomCount > 0) {
+    roomlist[room].roomCount = -roomlist[room].roomCount;
+  }
+  io.to('lobby').emit('updateLobby', { room, roomCount: roomlist[room].roomCount });
+  if (roomlist[room].roomCount === 0) {
+    delete roomlist[room];
+    delete rooms[room];
+  }
+};
+
 // small function, but now i'll never mispell err
 const socketErr = (sock, msg) => {
   const socket = sock;
@@ -47,6 +60,43 @@ const socketErr = (sock, msg) => {
 };
 
 
+// removes a player from a room
+const leaveRoom = (sock) => {
+  const socket = sock;
+
+  if (!socket.roomString || !rooms[socket.roomString] || typeof socket.playerPos === 'undefined') {
+    return;
+  }
+
+  const s = socket.roomString;
+  const room = rooms[s];
+  const n = socket.playerPos;
+
+  // should probably do hashes
+  if (!room[n]) {
+    return;
+  }
+
+
+  socket.broadcast.to(socket.roomString).emit('left', { playerPos: socket.playerPos });
+
+  delete room[n];
+  delete socket.playerPos;
+
+  if (room.readyCount > 0 && socket.ready) { room.readyCount--; }
+  if (roomlist[s].roomCount < 0) {
+    roomlist[s].roomCount++;
+  } else {
+    roomlist[s].roomCount--;
+  }
+
+  updateLobby(s);
+
+  socket.leave(socket.roomString);
+  delete socket.roomString;
+};
+
+// loads a maze
 const loadMaze = (sock, roomName) => {
   const socket = sock;
   if (!roomName || !rooms[roomName]) {
@@ -67,42 +117,33 @@ const loadMaze = (sock, roomName) => {
   }, 10);
 };
 
+// puts a player in the lobby
 const enterLobby = (sock) => {
   const socket = sock;
 
   socket.emit('lobby', roomlist);
-  
+
   socket.join('lobby');
-  
+
   socket.inLobby = true;
   delete socket.roomString;
 };
 
-const updateLobby = (room) => {
-  let res = 1;
-  if(rooms[room].running || rooms[room].over)
-    res = -1
-  io.to('lobby').emit('updateLobby', {room: room, roomCount: res * roomlist[room].roomCount});
-  if (roomlist[room].roomCount === 0) {
-    delete roomlist[room]
-    delete rooms[room];
-  }
-};
 
 // joins socket to a room
 // room creation will require waiting while new mazes are made
 const joinRoom = (sock, roomName) => {
   const socket = sock;
 
-  if(socket.roomString){
+  if (socket.roomString) {
     leaveRoom(socket);
   }
-  
+
   if (!rooms[roomName]) {
     return socketErr(socket, 'Room not found');
   }
-  
-  if(rooms[roomName].running || rooms[roomName].over){
+
+  if (rooms[roomName].running || rooms[roomName].over) {
     return socketErr(socket, 'Game in progress');
   }
 
@@ -120,59 +161,25 @@ const joinRoom = (sock, roomName) => {
   socket.roomString = roomName;
   socket.ready = false;
   socket.join(roomName);
-  
+
   let looking = true;
 
   for (let i = 0; i < MAX_ROOM_SIZE; i++) {
     if (!room[i] && looking) {
       room[i] = socket;
       socket.playerPos = i;
-      socket.emit('join', { player: i , room: roomName});
-      console.log(i);
+      socket.emit('join', { player: i, room: roomName });
       looking = false;
-    }
-    else if(room[i]){
-      socket.emit('init',  rooms[roomName][i].lastPosition);
+    } else if (room[i]) {
+      socket.emit('init', { playerPos: i });
     }
   }
-  
+
   return loadMaze(socket, roomName);
-  // i'm not sure why the code would get here
-  return socket.emit('full', {});
 };
 
-const leaveRoom = (sock) => {
-  const socket = sock;
 
-  if (!socket.roomString || !rooms[socket.roomString] || typeof socket.playerPos === 'undefined') {
-    return;
-  }
-
-  const s = socket.roomString;
-  const room = rooms[s];
-  const n = socket.playerPos;
-
-  // should probably do hashes
-  if (!room[n]) {
-    return;
-  }
-  
-  
-  socket.broadcast.to(socket.roomString).emit('left', {playerPos:socket.playerPos});
-  
-  delete room[n];
-  delete socket.playerPos;
-  
-  if(room.readyCount > 0 && socket.ready)
-    room.readyCount--;
-  roomlist[s].roomCount--;
-  
-  updateLobby(s);
-
-  socket.leave(socket.roomString);
-  delete socket.roomString;
-};
-
+// when a socket leaves a room, tells all others
 const onLeave = (sock) => {
   const socket = sock;
 
@@ -185,6 +192,8 @@ const onLeave = (sock) => {
   });
 };
 
+
+// creates a room for a socket
 const onCreate = (sock) => {
   const socket = sock;
 
@@ -198,17 +207,18 @@ const onCreate = (sock) => {
       return;
     }
 
-    rooms[data.room] = {readyCount: 0, running: false, over: false};
+    rooms[data.room] = { readyCount: 0, running: false, over: false };
     roomlist[data.room] = { roomCount: 0 };
 
     mazeHandler.createMaze(17, 17).then((m) => {
       rooms[data.room].maze = m;
     });
-    
+
     joinRoom(socket, data.room);
   });
 };
 
+// ads a player to a room
 const onJoinRoom = (sock) => {
   const socket = sock;
 
@@ -233,7 +243,7 @@ const validatePos = (sock, data) => {
   newData.x = parseFloat(data.x);
   newData.y = parseFloat(data.y);
   if (Number.isNaN(newData.x) || Number.isNaN(newData.y)) {
-    return {fail: true};
+    return { fail: true };
   }
 
   newData.timestamp = new Date().getTime();
@@ -248,29 +258,30 @@ const onMove = (sock) => {
 
   socket.on('move', (data) => {
     const newData = validatePos(socket, data);
-    
+
     if (newData.fail) {
       return;
-    } 
-    rooms[socket.roomString][socket.playerPos].lastPosition = newData;
-    
-    if(!rooms[socket.roomString].running) return;
-    
+    }
+
+    if (!rooms[socket.roomString].running) return;
+
     socket.broadcast.to(socket.roomString).emit('move', newData);
   });
 };
 
+
+// handles players trying to win the game
 const onWin = (sock) => {
   const socket = sock;
 
   socket.on('win', (data) => {
-    if(!rooms[socket.roomString].running) return;
-    
+    if (!rooms[socket.roomString].running) return;
+
     const newData = validatePos(socket, data);
-    
+
     if (newData.fail) {
       return;
-    } 
+    }
 
     socket.broadcast.to(socket.roomString).emit('lose', { winner: socket.playerPos });
     socket.emit('win', {});
@@ -279,72 +290,69 @@ const onWin = (sock) => {
   });
 };
 
-
+// starts a room game for all players in room
 const startGame = (room) => {
   io.to(room).emit('start', {});
   rooms[room].readyCount = 0;
-  
-  for(let i = 0; i < 4; i++){
-    if(rooms[room][i])
-      rooms[room][i].ready = false;
+
+  for (let i = 0; i < 4; i++) {
+    if (rooms[room][i]) { rooms[room][i].ready = false; }
   }
-  
+
   rooms[room].running = true;
   updateLobby(room);
 };
 
+// handles players readying up
 const onReady = (sock) => {
   const socket = sock;
 
   socket.on('ready', () => {
     const s = socket.roomString;
-console.dir('1');
     if (!s || !rooms[socket.roomString]) {
-      console.dir('2');
       return;
     }
-    
-    if(rooms[socket.roomString].running || rooms[socket.roomString].over)
-      return;
-console.dir('3');
+
+    if (rooms[socket.roomString].running || rooms[socket.roomString].over) { return; }
     if (socket.ready) {
       return;
     }
-console.dir('4');
     socket.ready = true;
 
     rooms[s].readyCount++;
-    console.dir(`${roomlist[s].roomCount} : ${rooms[s].readyCount}`);
     if (roomlist[s].roomCount > 1 && roomlist[s].roomCount === rooms[s].readyCount) {
-      console.dir('5');
       startGame(socket.roomString);
     }
   });
 };
 
+// when player requests a map reset
 const onReset = (sock) => {
   const socket = sock;
-  
+
   socket.on('reset', () => {
-    if(!rooms[socket.roomString].over)
-      return;
-    
+    if (!rooms[socket.roomString].over) { return; }
+
     rooms[socket.roomString].over = false;
     rooms[socket.roomString].running = false;
     rooms[socket.roomString].readyCount = 0;
+    roomlist[socket.roomString].roomCount = Math.abs(roomlist[socket.roomString].roomCount);
+    socket.broadcast.to(socket.roomString).emit('reset', {});
+
     updateLobby(socket.roomString);
   });
-}
+};
 
-const onInit = sock => {
+// sends initial player state to all players in room
+const onInit = (sock) => {
   const socket = sock;
-  
-  socket.on('init', data => {
-    rooms[socket.roomString][socket.playerPos].lastPosition = data;
+
+  socket.on('init', (data) => {
     socket.broadcast.to(socket.roomString).emit('init', data);
   });
 };
 
+// removes a socket from all rooms
 const onDisconnect = (sock) => {
   const socket = sock;
 
@@ -373,8 +381,6 @@ io.sockets.on('connection', (sock) => {
   onMove(socket);
   onWin(socket);
   onDisconnect(socket);
-
-  console.log('attempt');
 });
 
 console.log('Websocket server started');

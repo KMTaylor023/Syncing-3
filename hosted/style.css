@@ -1,5 +1,143 @@
+* {
+  margin: 0;
+  padding: 0;
+  font-family: 'Open Sans', sans-serif;
+}
+
 #game,
 #lobby,
 #again{
   display: none;
 }
+
+header {
+  display: block;
+  position: relative;
+  text-align: center;
+  margin: 10px auto;
+  font-family: "Orbitron", sans-serif;
+}
+
+#gameCanvas {
+  width: 100%;
+  max-width: 510px;
+  margin: 0 auto;
+  position: relative;
+  display: block;
+}
+
+
+#roomp,
+#helpText {
+  text-align: center;
+}
+
+#buttonDiv {
+  text-align: center;
+}
+
+.full {
+  pointer-events: none;
+  cursor: default;
+  background-color: dimgray;
+}
+
+.open {
+  cursor: pointer;
+}
+
+.win {
+  color: blue;
+}
+
+.lose {
+  color: red;
+}
+/* ++++++++++ lobby ++++++++++ */
+
+#lobby p,
+#lobby input,
+#lobby li,
+#lobby button {
+  font: 400 12px/16px "Open Sans", sans-serif;
+  list-style-type: none;
+}
+
+#lobby {
+  max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+  position: relative;
+  text-align: center;
+  background: #F9F9F9;
+  padding: 25px;
+  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.2), 0 5px 5px 0 rgba(0, 0, 0, 0.24);
+}
+
+#lobby h3 {
+  display: block;
+  font-size: 30px;
+  font-weight: 300;
+  margin-bottom: 10px;
+}
+
+
+#lobby li{
+  width: 100%;
+  border: 1px solid #ccc;
+  background: #FFF;
+  margin: 0 0 5px;
+  position: relative;
+  padding: 10px 0;
+}
+
+#lobby input,
+#lobby button {
+  width: 100%;
+  border: 1px solid #ccc;
+  background: #FFF;
+  margin: 0 0 5px;
+  position: relative;
+  padding: 10px;
+}
+
+
+
+#lobby a {
+  width: 100%;
+  display: block;
+  color: black;
+  text-decoration: none;
+  text-align: center;
+  font-size: 24px;
+  position: relative;
+  left: 0;
+  padding: 10px 0;
+}
+
+#lobby button {
+  cursor: pointer;
+  width: 100%;
+  border: none;
+  background: #4CAF50;
+  color: #FFF;
+  margin: 5px;
+  padding: 10px;
+  font-size: 15px;
+}
+
+form button:hover,
+.open:hover{
+  background: #43A047;
+  transition: background-color 0.3s ease-in-out;
+}
+
+form button:active {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+::placeholder {
+  color: #888;
+}
+
+/* ---------- lobby ---------- */

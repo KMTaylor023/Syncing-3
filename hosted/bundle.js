@@ -47,6 +47,7 @@ var ready = false;
 var tryWin = false;
 var gameRunning = false;
 
+// +++++++ Key handlers deal with setting player direction when game is running
 var keyDownHandler = function keyDownHandler(e) {
   if (!maze) {
     return;
@@ -81,7 +82,9 @@ var keyUpHandler = function keyUpHandler(e) {
     move[RIGHT] = false;
   }
 };
+// ------- 
 
+//Updates a plyers position
 var updatePlayer = function updatePlayer(number, data) {
   if (!players[number]) {
     players[number] = {};
@@ -93,6 +96,7 @@ var updatePlayer = function updatePlayer(number, data) {
   player.y = data.y;
 };
 
+//sets the pplayer number square up
 var addPlayer = function addPlayer(number) {
   players[number] = {
     x: 0,
@@ -102,20 +106,28 @@ var addPlayer = function addPlayer(number) {
   };
 
   // sets up corners
-  if (number > 1) {
+  if (+number > 1) {
     players[number].y = 16;
   }
-  if (number === 0 || number === 2) {
+  if (+number === 0 || +number === 2) {
     players[number].x = 16;
   }
 };
 
+//resets the current game state
 var resetGame = function resetGame() {
   var playKeys = Object.keys(players);
-
   for (var i = 0; i < playKeys.length; i++) {
     addPlayer(playKeys[i]);
   }
+
+  for (var _i = 0; _i < 4; _i++) {
+    move[_i] = false;
+  }
+
+  helpTextTag.className = "";
+
+  helpTextTag.innerHTML = "Ready Up!";
 
   document.querySelector('#again').style.display = 'none';
 
@@ -125,6 +137,7 @@ var resetGame = function resetGame() {
   moveFrames = MOVE_FRAME_WAIT;
 };
 
+//exists the game, removes all game state vars
 var exitGame = function exitGame() {
   var playKeys = Object.keys(players);
 
@@ -191,6 +204,7 @@ var updatePosition = function updatePosition(sock) {
   return false;
 };
 
+//draws a player
 var drawPlayer = function drawPlayer(playnum, ctx, color) {
   var player = players[playnum];
   if (!player) {
@@ -202,6 +216,7 @@ var drawPlayer = function drawPlayer(playnum, ctx, color) {
   ctx.restore();
 };
 
+//the click handler for the rooom joins
 var roomclick = function roomclick(e, sock) {
   var socket = sock;
   e.preventDefault(true);
@@ -217,9 +232,16 @@ var roomclick = function roomclick(e, sock) {
   return false;
 };
 
+//sets up the lobby list
 var setupLobby = function setupLobby(ul, sock) {
 
   var keys = Object.keys(gamelist);
+
+  if (keys.length === 0) {
+    document.querySelector('#joinh').style.display = 'none';
+  } else {
+    document.querySelector('#joinh').style.display = 'block';
+  }
 
   var click = function click(e) {
     return roomclick(e, sock);
@@ -233,7 +255,9 @@ var setupLobby = function setupLobby(ul, sock) {
     var li = document.createElement('li');
     var a = document.createElement('a');
 
-    if (gamelist[keys[i]].roomCount >= 4) {
+    var num = gamelist[keys[i]].roomCount;
+
+    if (gamelist[keys[i]].roomCount >= 4 || num < 0) {
       a.className = 'full';
     } else {
       a.className = 'open';
@@ -242,7 +266,7 @@ var setupLobby = function setupLobby(ul, sock) {
     a.setAttribute('href', '#' + keys[i]);
     a.setAttribute('room', keys[i]);
     a.onclick = click;
-    a.innerHTML = keys[i] + ' : ' + gamelist[keys[i]].roomCount + '/4';
+    a.innerHTML = keys[i] + ' : ' + Math.abs(gamelist[keys[i]].roomCount) + '/4';
     li.appendChild(a);
     ul.appendChild(li);
     gamelist[keys[i]].element = li;
@@ -298,6 +322,7 @@ var drawMaze = function drawMaze() {
   }
 };
 
+//redraws the game
 var redraw = function redraw(time, socket, canvas, ctx) {
   if (!maze) {
     return;
@@ -330,6 +355,7 @@ var redraw = function redraw(time, socket, canvas, ctx) {
   });
 };
 
+//sets a given section to visible, and others invisible
 var setVisible = function setVisible(visible) {
   for (var i = 0; i < sections.length; i++) {
     if (i === visible) {
@@ -340,9 +366,10 @@ var setVisible = function setVisible(visible) {
   }
 };
 
-var endGame = function endGame(msg, color) {
+//sets end game message
+var endGame = function endGame(msg, classed) {
   helpTextTag.innerHTML = msg;
-  helpTextTag.style.color = color;
+  helpTextTag.className = classed;
 
   gameRunning = false;
 
@@ -351,22 +378,25 @@ var endGame = function endGame(msg, color) {
 
 /* +++++++++++++++++++++++++++++++ on +++++++++++++++++++ */
 
+//when a player loses the game, sets lose message
 var onLose = function onLose(sock) {
   var socket = sock;
 
   socket.on('lose', function (data) {
-    endGame('YOU LOST TO PLAYER ' + (data.winner + 1) + '!! :c', 'red');
+    endGame('YOU LOST TO PLAYER ' + (data.winner + 1) + '!! :c', 'lose');
   });
 };
 
+//when a player wins the game, sets win message
 var onWin = function onWin(sock) {
   var socket = sock;
 
   socket.on('win', function () {
-    endGame('YOU WON!!', 'blue');
+    endGame('YOU WON!!', 'win');
   });
 };
 
+//moves the player given on move
 var onMove = function onMove(sock) {
   var socket = sock;
   socket.on('move', function (data) {
@@ -376,14 +406,16 @@ var onMove = function onMove(sock) {
   });
 };
 
+//sets up a player who has joined the room
 var onInit = function onInit(sock) {
   var socket = sock;
 
   socket.on('init', function (data) {
-    updatePlayer(data.playerPos, data);
+    addPlayer(data.playerPos);
   });
 };
 
+//loads the maze 
 var onLoad = function onLoad(sock, canvas) {
   var socket = sock;
 
@@ -400,6 +432,7 @@ var onLoad = function onLoad(sock, canvas) {
   });
 };
 
+//joins the game, sets up plyaer position
 var onJoin = function onJoin(sock) {
   var socket = sock;
 
@@ -419,10 +452,11 @@ var onJoin = function onJoin(sock) {
 
     var me = players[playerNum];
 
-    socket.emit('init', { x: me.x, y: me.y, playerPos: playerNum });
+    socket.emit('init', { playerPos: playerNum });
   });
 };
 
+//The room was full
 var onFull = function onFull(sock) {
   var socket = sock;
 
@@ -431,6 +465,7 @@ var onFull = function onFull(sock) {
   });
 };
 
+//showws an error
 var onErr = function onErr(sock) {
   var socket = sock;
 
@@ -441,6 +476,7 @@ var onErr = function onErr(sock) {
   });
 };
 
+//updates the lobby when rooms change
 var onUpdateLobby = function onUpdateLobby(sock, ul) {
   var socket = sock;
 
@@ -472,6 +508,7 @@ var onUpdateLobby = function onUpdateLobby(sock, ul) {
   });
 };
 
+//the initial lobby setup
 var onLobby = function onLobby(sock, ul) {
   var socket = sock;
   socket.on('lobby', function (data) {
@@ -484,15 +521,27 @@ var onLobby = function onLobby(sock, ul) {
   });
 };
 
+//resets the game
+var onReset = function onReset(sock) {
+  var socket = sock;
+
+  socket.on('reset', function () {
+    resetGame();
+  });
+};
+
+//starts the game
 var onStart = function onStart(sock) {
   var socket = sock;
 
   socket.on('start', function () {
     gameRunning = true;
+    helpTextTag.innerHTML = 'Game On!';
   });
 };
 
-var onLeft = function onLeft(socke) {
+//removes given player from game
+var onLeft = function onLeft(sock) {
   var socket = sock;
 
   socket.on('left', function (data) {
@@ -501,19 +550,20 @@ var onLeft = function onLeft(socke) {
 };
 /* ------------------------------- on ------------------- */
 
+//sets up initial app state
 var init = function init() {
   var canvas = document.querySelector('canvas');
-  canvas.width = 520;
-  canvas.height = 520;
-  mazeCanvas.width = 520;
-  mazeCanvas.height = 520;
+  canvas.width = 510;
+  canvas.height = 510;
+  mazeCanvas.width = 510;
+  mazeCanvas.height = 510;
   canvas.style.border = '1px solid blue';
 
   helpTextTag = document.querySelector('#helpText');
 
   var socket = io.connect();
 
-  var lobby = document.querySelector('#lobby');
+  var lobbyUl = document.querySelector('#lobby ul');
   var lobbyButton = document.querySelector('#lobbyButton');
   var createButton = document.querySelector('#createRoomButton');
   var readyButton = document.querySelector('#ready');
@@ -576,15 +626,17 @@ var init = function init() {
   });
 
   socket.on('connect', function () {
-    onLobby(socket, lobby);
-    onUpdateLobby(socket, lobby);
+    onLobby(socket, lobbyUl);
+    onUpdateLobby(socket, lobbyUl);
     onJoin(socket);
     onLoad(socket, canvas);
     onFull(socket);
     onStart(socket);
+    onReset(socket);
     onErr(socket);
     onInit(socket);
     onMove(socket);
+    onLeft(socket);
     onWin(socket);
     onLose(socket);
   });
