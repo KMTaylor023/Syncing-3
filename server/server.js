@@ -106,7 +106,7 @@ const joinRoom = (sock, roomName) => {
     if (!room[i]) {
       room[i] = socket;
       socket.playerPos = i;
-      socket.emit('join', { player: i });
+      socket.emit('join', { player: i , room: roomName});
       return loadMaze(socket, roomName);
     }
   }

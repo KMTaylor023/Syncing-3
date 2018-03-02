@@ -1,7 +1,4 @@
-#game {
-  display: none;
-}
-
-#lobby {
+#game,
+#lobby{
   display: none;
 }

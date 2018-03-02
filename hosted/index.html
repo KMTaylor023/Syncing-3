@@ -1,27 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <link rel="stylesheet" href="/style.css">
     <script src="/socket.io/socket.io.js"></script>
     <script src="bundle.js"></script>
-</head>
-<body>
-<div id="lobby">
-  <select id='lobbies'></select>
-  <input type="text" id="roomName">
-  <button type="button" id="createRoomButton">Create Room</button>
-</div>
-<div id="game">
-  <canvas></canvas>
-  <button type="button" id="ready">Ready Up</button>
-  <button type="button" id="leave">Leave</button>
-</div>
-<div id="loading">
-  <h1>loading</h1>
-</div>
-<div id="err">
-  <p id="errMsg"></p>
-  <button type='button' id="lobbyButton">Back to Lobby</button>
-</div>
-</body>
+  </head>
+  <body>
+    <header>
+      <h1>Synchromaze</h1>
+      <h2>by Keegan Taylor</h2>
+    </header>
+    <div id="lobby">
+      <div id='joinroom'>
+        <h3>Click to Join Room</h3>
+        <ul id='lobbies'></ul>
+      </div>
+      <div id='createroom'>
+        <h3>Create New Room</h3>
+        <input type="text" id="roomName" placeholder="Enter Room Name...">
+        <button type="button" id="createRoomButton">Create</button>
+      </div>
+    </div>
+    <div id="game">
+      <p id='roomp'></p>
+      <canvas></canvas>
+      <button type="button" id="ready">Ready</button>
+      <button type="button" id="leave">Leave</button>
+    </div>
+    <div id="loading">
+      <h1>loading</h1>
+    </div>
+    <div id="err">
+      <p id="errMsg"></p>
+      <button type='button' id="lobbyButton">Back to Lobby</button>
+    </div>
+  </body>
 </html>

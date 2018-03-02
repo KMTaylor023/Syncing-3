@@ -6,7 +6,7 @@
 // also i *needed* bitwise
 
 
-const players = [];
+const players = {};
 
 const MOVE_FRAME_WAIT = 20;
 const P_SIZE = 20;
@@ -29,6 +29,8 @@ const DOWN = 3;
 const mazeCanvas = document.createElement('canvas');
 const mazeCtx = mazeCanvas.getContext('2d');
 
+const gamelist = {};
+
 // left,  up,    right,  down
 const move = [false, false, false, false];
 
@@ -43,37 +45,36 @@ let helpTextTag;
 let ready = false;
 let tryWin = false;
 let gameRunning = false;
-// const ready = false;
 
-const resetVars = () => {
-  gameRunning = false;
-  ready = false;
-  tryWin = false;
-  maze = {};
-  moveFrames = MOVE_FRAME_WAIT;
-  playerNum = -1;
+const keyDownHandler = (e) => {
+  const keyPressed = e.which;
+  if (keyPressed === 87 || keyPressed === 38) {
+    move[UP] = true;
+  } else if (keyPressed === 65 || keyPressed === 37) {
+    move[LEFT] = true;
+  } else if (keyPressed === 83 || keyPressed === 40) {
+    move[DOWN] = true;
+  } else if (keyPressed === 68 || keyPressed === 39) {
+    move[RIGHT] = true;
+  }
+  if (move[UP] || move[LEFT] || move[DOWN] || move[RIGHT]) {
+    e.preventDefault(true);
+  }
 };
 
-const onLose = (sock) => {
-  const socket = sock;
-
-  socket.on('lose', (data) => {
-    helpTextTag.innerHTML = `YOU LOST TO PLAYER ${data.winner + 1}!! :c`;
-    helpTextTag.style.color = 'red';
-    gameRunning = false;
-    tryWin = true;
-  });
+const keyUpHandler = (e) => {
+  const keyPressed = e.which;
+  if (keyPressed === 87 || keyPressed === 38) {
+    move[UP] = false;
+  } else if (keyPressed === 65 || keyPressed === 37) {
+    move[LEFT] = false;
+  } else if (keyPressed === 83 || keyPressed === 40) {
+    move[DOWN] = false;
+  } else if (keyPressed === 68 || keyPressed === 39) {
+    move[RIGHT] = false;
+  }
 };
 
-const onWin = (sock) => {
-  const socket = sock;
-
-  socket.on('win', () => {
-    helpTextTag.innerHTML = 'YOU WON!!';
-    helpTextTag.style.color = 'blue';
-    gameRunning = false;
-  });
-};
 
 const updatePlayer = (number, data) => {
   if (!players[number]) {
@@ -85,13 +86,6 @@ const updatePlayer = (number, data) => {
   // TODO could lerp here
   player.x = data.x;
   player.y = data.y;
-};
-
-const onMove = (sock) => {
-  const socket = sock;
-  socket.on('move', (data) => {
-    if (gameRunning) { updatePlayer(data.playerPos, data); }
-  });
 };
 
 const addPlayer = (number) => {
@@ -111,6 +105,32 @@ const addPlayer = (number) => {
     players[number].x = maze[0].length - 1;
   }
 };
+
+const resetGame = () => {
+  const playKeys = Object.keys(players);
+  
+  for(let i = 0; i < playKeys.length; i++) {
+    addPlayer(playKeys[i]);
+  }
+  
+  gameRunning = false;
+  ready = false;
+  tryWin = false;
+  moveFrames = MOVE_FRAME_WAIT;
+}
+
+const exitGame = () =>{
+  const playKeys = Object.keys(players);
+  
+  for(let i = 0; i < playKeys.length; i++) {
+    delete players[playKeys[i]];
+  }
+  
+  resetGame();
+  
+  maze = {};
+  playerNum = -1;
+}
 
 // Updates position, returns true if player is now in win spot
 const updatePosition = (sock) => {
@@ -183,6 +203,52 @@ const drawPlayer = (playnum, ctx, color) => {
 };
 
 
+const roomclick = (e)=> {
+    
+    e.preventDefault(true);
+    if(e.target.className === 'full'){
+      return false;
+    }
+    
+    const room = e.target.getAttribute('room');
+    
+    setVisible(LOADING);
+    socket.emit('joinRoom', { room });
+    
+    return false;
+}
+
+
+const setupLobby = (ul) => {
+  
+  const keys = Object.keys(gamelist);
+  
+  for(let i = 0; i < keys.length; i++) {
+    
+    if(gamelist[i].element){
+      continue;
+    }
+    
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    
+    if (data[keys[i]].roomCount >= 4) {
+      a.className = 'full'
+    }
+    else{
+      a.className = 'open'
+    }
+
+    a.setAttribute('href',`#${keys[i]}`);
+    a.setAttribute('room',keys[i]);
+    a.onclick = roomclick;
+    a.innerHTML = `${keys[i]} : ${gamelist[keys[i]].roomCount}/4`;
+    li.appendChild(a);
+    ul.appendChild(li);
+    gamelist[i].element = li;
+  }
+};
+
 // draws the maze to the mazeCtx
 const drawMaze = () => {
   mazeCtx.fillStyle = 'black';
@@ -234,6 +300,11 @@ const drawMaze = () => {
   }
 };
 
+const makeErr = (msg) => {
+  setVisible(ERR);
+  document.querySelector('errMsg').innerHTML = m;
+};
+
 const redraw = (time, socket, canvas, ctx) => {
   if (gameRunning) {
     if (!tryWin) {
@@ -251,9 +322,10 @@ const redraw = (time, socket, canvas, ctx) => {
 
   ctx.drawImage(mazeCanvas, 0, 0);
 
-  for (let i = 0; i < players.length; i++) {
-    if (i !== playerNum) {
-      drawPlayer(i, ctx, 'red');
+  const playKeys = Object.keys(players);
+  for (let i = 0; i < playKeys.length; i++) {
+    if (playKeys[i] !== playerNum) {
+      drawPlayer(playKeys[i], ctx, 'red');
     }
   }
   // draw us on top
@@ -271,6 +343,36 @@ const setVisible = (visible) => {
       sections[i].style.display = 'none';
     }
   }
+};
+
+/* +++++++++++++++++++++++++++++++ on +++++++++++++++++++ */
+
+const onLose = (sock) => {
+  const socket = sock;
+
+  socket.on('lose', (data) => {
+    helpTextTag.innerHTML = `YOU LOST TO PLAYER ${data.winner + 1}!! :c`;
+    helpTextTag.style.color = 'red';
+    gameRunning = false;
+    tryWin = true;
+  });
+};
+
+const onWin = (sock) => {
+  const socket = sock;
+
+  socket.on('win', () => {
+    helpTextTag.innerHTML = 'YOU WON!!';
+    helpTextTag.style.color = 'blue';
+    gameRunning = false;
+  });
+};
+
+const onMove = (sock) => {
+  const socket = sock;
+  socket.on('move', (data) => {
+    if (gameRunning) { updatePlayer(data.playerPos, data); }
+  });
 };
 
 const onLoad = (sock, canvas) => {
@@ -297,12 +399,10 @@ const onJoin = (sock) => {
     setVisible(LOADING);
 
     playerNum = data.player;
-
+    
+    document.querySelector('#roomp').innerHTML = `Room: ${data.room}`;
 
     addPlayer(playerNum);
-
-
-    // TODO add ready button
   });
 };
 
@@ -318,67 +418,53 @@ const onErr = (sock) => {
   const socket = sock;
 
   socket.on('err', (data) => {
-    const m = data.msg;
-
-    resetVars();
-    setVisible(ERR);
-    document.querySelector('errMsg').innerHTML = m;
+    exitGame()
+    makeErr(data.msg);
   });
 };
 
-const onLobby = (sock, select) => {
+const onLobbyUpdate = (sock, ul) => {
   const socket = sock;
+  
+  socket.on('updateLobby', (data) => {
+    const {room} = data;
+    const count = data.roomCount;
+    
+    if(count === 0 && gamelist[room]) {
+      ul.removeChild(gamelist[room].element)
+      delete gamelist[room];
+    }
+    else if (!gamelist[room]){
+      gamelist[room].roomCount = count;
+      setupLobby(ul);
+    }
+    else{
+      gamelist[room].roomCount = count;
+      gamelist[room].element.innerHTML = `${room} : ${count}/4`;
+      if(count === 4){
+        gamelist[room].element.className = 'full'
+      }
+      else{
+        gamelist[room].element.className = 'open'
+      }
+    }
+  });
+}
 
-  while (select.firstChild) {
-    select.removeChild(select.firstChild);
-  }
+const onLobby = (sock, ul) => {
+  const socket = sock;
 
   socket.on('lobby', (data) => {
     setVisible(LOBBY);
-    console.dir(data);
-
+    
     const keys = Object.keys(data);
     for (let i = 0; i < keys.length; i++) {
-      if (data[keys[i]].roomCount >= 4) {
-        return;// TODO SHOW THESE AS FULL LATERE
-      }
-      const opt = document.createElement('option');
-
-      opt.setAttribute('value', keys[i]);
-      opt.innerHTML = `${keys[i]} : ${data[keys[i]].roomCount}`;
-      select.appendChild(opt);
+      gamelist[keys[i]] = data[keys[i]];
     }
+    
+    setupLobby(ul);
+    
   });
-};
-
-
-const keyDownHandler = (e) => {
-  const keyPressed = e.which;
-  if (keyPressed === 87 || keyPressed === 38) {
-    move[UP] = true;
-  } else if (keyPressed === 65 || keyPressed === 37) {
-    move[LEFT] = true;
-  } else if (keyPressed === 83 || keyPressed === 40) {
-    move[DOWN] = true;
-  } else if (keyPressed === 68 || keyPressed === 39) {
-    move[RIGHT] = true;
-  }
-  if (move[UP] || move[LEFT] || move[DOWN] || move[RIGHT]) {
-    e.preventDefault();
-  }
-};
-
-const keyUpHandler = (e) => {
-  const keyPressed = e.which;
-  if (keyPressed === 87 || keyPressed === 38) {
-    move[UP] = false;
-  } else if (keyPressed === 65 || keyPressed === 37) {
-    move[LEFT] = false;
-  } else if (keyPressed === 83 || keyPressed === 40) {
-    move[DOWN] = false;
-  } else if (keyPressed === 68 || keyPressed === 39) {
-    move[RIGHT] = false;
-  }
 };
 
 const onStart = (sock) => {
@@ -388,6 +474,8 @@ const onStart = (sock) => {
     gameRunning = true;
   });
 };
+
+/* ------------------------------- on ------------------- */
 
 
 const init = () => {
@@ -402,7 +490,7 @@ const init = () => {
 
   const socket = io.connect();
 
-  const select = document.querySelector('select');
+  const lobby = document.querySelector('#lobby');
   const lobbyButton = document.querySelector('#lobbyButton');
   const createButton = document.querySelector('#createRoomButton');
   const readyButton = document.querySelector('#ready');
@@ -416,25 +504,28 @@ const init = () => {
 
   leaveButton.addEventListener('click', (e) => {
     socket.emit('leave', {});
-    setVisible(LOADING);
-    resetVars();
+    setVisible(LOBBY);
+    exitGame();
 
     e.preventDefault(true);
     return false;
   });
 
   readyButton.addEventListener('click', (e) => {
+    e.preventDefault(true);
+    
     if (ready) {
       return false;
     }
+    
     socket.emit('ready', {});
     ready = true;
 
-    e.preventDefault(true);
     return false;
   });
 
   createButton.addEventListener('click', (e) => {
+    e.preventDefault(true);
     if (nameText.value === '') {
       return false;
     }
@@ -443,32 +534,20 @@ const init = () => {
     socket.emit('create', { room: nameText.value });
     setVisible(LOADING);
     nameText.value = '';
-
-    e.preventDefault(true);
+    
     return false;
   });
 
   lobbyButton.addEventListener('click', (e) => {
-    setVisible(LOADING);
-    socket.emit('lobby', {});
+    setVisible(LOBBY);
 
     e.preventDefault(true);
     return false;
   });
 
-  select.onchange = (e) => {
-    const val = e.target.value;
-
-    if (!val || val === '') {
-      return;
-    }
-
-    socket.emit('joinRoom', { room: val });
-    setVisible(LOADING);
-  };
-
   socket.on('connect', () => {
-    onLobby(socket, select);
+    onLobby(socket, lobby);
+    onUpdateLobby(socket, lobby);
     onJoin(socket);
     onLoad(socket, canvas);
     onFull(socket);
