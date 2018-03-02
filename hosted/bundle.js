@@ -415,6 +415,7 @@ var onJoin = function onJoin(sock) {
     document.querySelector('#roomp').innerHTML = 'Room: ' + data.room;
 
     addPlayer(playerNum);
+    helpTextTag.innerHTML = 'Ready Up!';
 
     var me = players[playerNum];
 
@@ -550,6 +551,7 @@ var init = function init() {
 
     socket.emit('ready', {});
     ready = true;
+    helpTextTag.innerHTML = "Waiting for other players";
     return false;
   });
 
