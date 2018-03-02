@@ -47,6 +47,9 @@ let tryWin = false;
 let gameRunning = false;
 
 const keyDownHandler = (e) => {
+  if(!maze){
+    return;
+  }
   const keyPressed = e.which;
   if (keyPressed === 87 || keyPressed === 38) {
     move[UP] = true;
@@ -63,6 +66,9 @@ const keyDownHandler = (e) => {
 };
 
 const keyUpHandler = (e) => {
+  if(!maze){
+    return;
+  }
   const keyPressed = e.which;
   if (keyPressed === 87 || keyPressed === 38) {
     move[UP] = false;
@@ -99,11 +105,13 @@ const addPlayer = (number) => {
 
   // sets up corners
   if (number > 1) {
-    players[number].y = maze.length - 1;
+    players[number].y = 16;
   }
   if (number === 0 || number === 2) {
-    players[number].x = maze[0].length - 1;
+    players[number].x = 16;
   }
+  
+  
 };
 
 const resetGame = () => {
@@ -112,6 +120,8 @@ const resetGame = () => {
   for(let i = 0; i < playKeys.length; i++) {
     addPlayer(playKeys[i]);
   }
+  
+  document.querySelector('#again').style.display = 'none';
   
   gameRunning = false;
   ready = false;
@@ -128,7 +138,7 @@ const exitGame = () =>{
   
   resetGame();
   
-  maze = {};
+  maze = undefined;
   playerNum = -1;
 }
 
@@ -174,7 +184,7 @@ const updatePosition = (sock) => {
     }
     if (moved) {
       moveFrames = 0;
-      socket.emit('move', { x: me.x, y: me.y });
+      socket.emit('move', {playerPos: playerNum, x: me.x, y: me.y });
     }
   } else {
     moveFrames++;
@@ -203,8 +213,8 @@ const drawPlayer = (playnum, ctx, color) => {
 };
 
 
-const roomclick = (e)=> {
-    
+const roomclick = (e,sock)=> {
+    const socket = sock;
     e.preventDefault(true);
     if(e.target.className === 'full'){
       return false;
@@ -219,20 +229,21 @@ const roomclick = (e)=> {
 }
 
 
-const setupLobby = (ul) => {
+const setupLobby = (ul, sock) => {
   
   const keys = Object.keys(gamelist);
   
+  const click = (e) => roomclick(e,sock);
+  
   for(let i = 0; i < keys.length; i++) {
-    
-    if(gamelist[i].element){
+    if(gamelist[keys[i]].element){
       continue;
     }
     
     const li = document.createElement('li');
     const a = document.createElement('a');
     
-    if (data[keys[i]].roomCount >= 4) {
+    if (gamelist[keys[i]].roomCount >= 4) {
       a.className = 'full'
     }
     else{
@@ -241,11 +252,11 @@ const setupLobby = (ul) => {
 
     a.setAttribute('href',`#${keys[i]}`);
     a.setAttribute('room',keys[i]);
-    a.onclick = roomclick;
+    a.onclick = click;
     a.innerHTML = `${keys[i]} : ${gamelist[keys[i]].roomCount}/4`;
     li.appendChild(a);
     ul.appendChild(li);
-    gamelist[i].element = li;
+    gamelist[keys[i]].element = li;
   }
 };
 
@@ -300,19 +311,16 @@ const drawMaze = () => {
   }
 };
 
-const makeErr = (msg) => {
-  setVisible(ERR);
-  document.querySelector('errMsg').innerHTML = m;
-};
-
 const redraw = (time, socket, canvas, ctx) => {
+  if(!maze){
+    return;
+  }
+  
   if (gameRunning) {
     if (!tryWin) {
       tryWin = updatePosition(socket);
       if (tryWin) {
-        socket.emit('win', players[playerNum]);
-      } else {
-        socket.emit('move', players[playerNum]);
+        socket.emit('win', {x: players[playerNum].x, y: players[playerNum].y});
       }
     }
   }
@@ -345,16 +353,22 @@ const setVisible = (visible) => {
   }
 };
 
+const endGame = (msg, color) => {
+  helpTextTag.innerHTML = msg;
+  helpTextTag.style.color = color;
+  
+  gameRunning = false;
+  
+  document.querySelector('#again').style.display = 'inline';
+};
+
 /* +++++++++++++++++++++++++++++++ on +++++++++++++++++++ */
 
 const onLose = (sock) => {
   const socket = sock;
 
   socket.on('lose', (data) => {
-    helpTextTag.innerHTML = `YOU LOST TO PLAYER ${data.winner + 1}!! :c`;
-    helpTextTag.style.color = 'red';
-    gameRunning = false;
-    tryWin = true;
+    endGame(`YOU LOST TO PLAYER ${data.winner + 1}!! :c`,'red');
   });
 };
 
@@ -362,9 +376,7 @@ const onWin = (sock) => {
   const socket = sock;
 
   socket.on('win', () => {
-    helpTextTag.innerHTML = 'YOU WON!!';
-    helpTextTag.style.color = 'blue';
-    gameRunning = false;
+     endGame('YOU WON!!','blue')
   });
 };
 
@@ -374,6 +386,14 @@ const onMove = (sock) => {
     if (gameRunning) { updatePlayer(data.playerPos, data); }
   });
 };
+
+const onInit = (sock) => {
+  const socket = sock;
+  
+  socket.on('init', (data) => {
+    updatePlayer(data.playerPos, data);
+  })
+}
 
 const onLoad = (sock, canvas) => {
   const socket = sock;
@@ -403,6 +423,10 @@ const onJoin = (sock) => {
     document.querySelector('#roomp').innerHTML = `Room: ${data.room}`;
 
     addPlayer(playerNum);
+    
+    const me = players[playerNum];
+    
+    socket.emit('init', { x: me.x, y: me.y , playerPos: playerNum});
   });
 };
 
@@ -419,33 +443,39 @@ const onErr = (sock) => {
 
   socket.on('err', (data) => {
     exitGame()
-    makeErr(data.msg);
+    setVisible(ERR);
+    document.querySelector('#errMsg').innerHTML = data.msg;
   });
 };
 
-const onLobbyUpdate = (sock, ul) => {
+const onUpdateLobby = (sock, ul) => {
   const socket = sock;
   
   socket.on('updateLobby', (data) => {
     const {room} = data;
-    const count = data.roomCount;
+    let count = data.roomCount;
+    let closed = false;
+    if(count < 0){
+      count = -count;
+      closed = true;
+    }
     
     if(count === 0 && gamelist[room]) {
       ul.removeChild(gamelist[room].element)
       delete gamelist[room];
     }
     else if (!gamelist[room]){
-      gamelist[room].roomCount = count;
-      setupLobby(ul);
+      gamelist[room] = {roomCount: count};
+      setupLobby(ul, sock);
     }
     else{
       gamelist[room].roomCount = count;
-      gamelist[room].element.innerHTML = `${room} : ${count}/4`;
-      if(count === 4){
-        gamelist[room].element.className = 'full'
+      gamelist[room].element.firstChild.innerHTML = `${room} : ${count}/4`;
+      if(count === 4 || closed){
+        gamelist[room].element.firstChild.className = 'full'
       }
       else{
-        gamelist[room].element.className = 'open'
+        gamelist[room].element.firstChild.className = 'open'
       }
     }
   });
@@ -453,16 +483,13 @@ const onLobbyUpdate = (sock, ul) => {
 
 const onLobby = (sock, ul) => {
   const socket = sock;
-
   socket.on('lobby', (data) => {
     setVisible(LOBBY);
-    
     const keys = Object.keys(data);
     for (let i = 0; i < keys.length; i++) {
       gamelist[keys[i]] = data[keys[i]];
     }
-    
-    setupLobby(ul);
+    setupLobby(ul, sock);
     
   });
 };
@@ -475,6 +502,13 @@ const onStart = (sock) => {
   });
 };
 
+const onLeft = (socke) => {
+  const socket = sock;
+  
+  socket.on('left', (data) => {
+    delete players[data.playerPos]
+  });
+}
 /* ------------------------------- on ------------------- */
 
 
@@ -495,6 +529,7 @@ const init = () => {
   const createButton = document.querySelector('#createRoomButton');
   const readyButton = document.querySelector('#ready');
   const leaveButton = document.querySelector('#leave');
+  const resetButton = document.querySelector('#again');
 
   const nameText = document.querySelector('#roomName');
 
@@ -502,6 +537,14 @@ const init = () => {
     sections[i] = document.querySelector(`#${sections[i]}`);
   }
 
+  resetButton.addEventListener('click', (e) => {
+    if(gameRunning){
+      return;
+    }
+    socket.emit('reset',{});
+    resetGame();
+  });
+  
   leaveButton.addEventListener('click', (e) => {
     socket.emit('leave', {});
     setVisible(LOBBY);
@@ -513,14 +556,12 @@ const init = () => {
 
   readyButton.addEventListener('click', (e) => {
     e.preventDefault(true);
-    
     if (ready) {
       return false;
     }
     
     socket.emit('ready', {});
     ready = true;
-
     return false;
   });
 
@@ -530,7 +571,6 @@ const init = () => {
       return false;
     }
 
-    console.log(nameText.value);
     socket.emit('create', { room: nameText.value });
     setVisible(LOADING);
     nameText.value = '';
@@ -553,6 +593,7 @@ const init = () => {
     onFull(socket);
     onStart(socket);
     onErr(socket);
+    onInit(socket);
     onMove(socket);
     onWin(socket);
     onLose(socket);

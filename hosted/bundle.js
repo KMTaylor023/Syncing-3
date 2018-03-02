@@ -48,6 +48,9 @@ var tryWin = false;
 var gameRunning = false;
 
 var keyDownHandler = function keyDownHandler(e) {
+  if (!maze) {
+    return;
+  }
   var keyPressed = e.which;
   if (keyPressed === 87 || keyPressed === 38) {
     move[UP] = true;
@@ -64,6 +67,9 @@ var keyDownHandler = function keyDownHandler(e) {
 };
 
 var keyUpHandler = function keyUpHandler(e) {
+  if (!maze) {
+    return;
+  }
   var keyPressed = e.which;
   if (keyPressed === 87 || keyPressed === 38) {
     move[UP] = false;
@@ -97,10 +103,10 @@ var addPlayer = function addPlayer(number) {
 
   // sets up corners
   if (number > 1) {
-    players[number].y = maze.length - 1;
+    players[number].y = 16;
   }
   if (number === 0 || number === 2) {
-    players[number].x = maze[0].length - 1;
+    players[number].x = 16;
   }
 };
 
@@ -110,6 +116,8 @@ var resetGame = function resetGame() {
   for (var i = 0; i < playKeys.length; i++) {
     addPlayer(playKeys[i]);
   }
+
+  document.querySelector('#again').style.display = 'none';
 
   gameRunning = false;
   ready = false;
@@ -126,7 +134,7 @@ var exitGame = function exitGame() {
 
   resetGame();
 
-  maze = {};
+  maze = undefined;
   playerNum = -1;
 };
 
@@ -171,7 +179,7 @@ var updatePosition = function updatePosition(sock) {
     }
     if (moved) {
       moveFrames = 0;
-      socket.emit('move', { x: me.x, y: me.y });
+      socket.emit('move', { playerPos: playerNum, x: me.x, y: me.y });
     }
   } else {
     moveFrames++;
@@ -194,8 +202,8 @@ var drawPlayer = function drawPlayer(playnum, ctx, color) {
   ctx.restore();
 };
 
-var roomclick = function roomclick(e) {
-
+var roomclick = function roomclick(e, sock) {
+  var socket = sock;
   e.preventDefault(true);
   if (e.target.className === 'full') {
     return false;
@@ -209,20 +217,23 @@ var roomclick = function roomclick(e) {
   return false;
 };
 
-var setupLobby = function setupLobby(ul) {
+var setupLobby = function setupLobby(ul, sock) {
 
   var keys = Object.keys(gamelist);
 
-  for (var i = 0; i < keys.length; i++) {
+  var click = function click(e) {
+    return roomclick(e, sock);
+  };
 
-    if (gamelist[i].element) {
+  for (var i = 0; i < keys.length; i++) {
+    if (gamelist[keys[i]].element) {
       continue;
     }
 
     var li = document.createElement('li');
     var a = document.createElement('a');
 
-    if (data[keys[i]].roomCount >= 4) {
+    if (gamelist[keys[i]].roomCount >= 4) {
       a.className = 'full';
     } else {
       a.className = 'open';
@@ -230,11 +241,11 @@ var setupLobby = function setupLobby(ul) {
 
     a.setAttribute('href', '#' + keys[i]);
     a.setAttribute('room', keys[i]);
-    a.onclick = roomclick;
+    a.onclick = click;
     a.innerHTML = keys[i] + ' : ' + gamelist[keys[i]].roomCount + '/4';
     li.appendChild(a);
     ul.appendChild(li);
-    gamelist[i].element = li;
+    gamelist[keys[i]].element = li;
   }
 };
 
@@ -287,19 +298,16 @@ var drawMaze = function drawMaze() {
   }
 };
 
-var makeErr = function makeErr(msg) {
-  setVisible(ERR);
-  document.querySelector('errMsg').innerHTML = m;
-};
-
 var redraw = function redraw(time, socket, canvas, ctx) {
+  if (!maze) {
+    return;
+  }
+
   if (gameRunning) {
     if (!tryWin) {
       tryWin = updatePosition(socket);
       if (tryWin) {
-        socket.emit('win', players[playerNum]);
-      } else {
-        socket.emit('move', players[playerNum]);
+        socket.emit('win', { x: players[playerNum].x, y: players[playerNum].y });
       }
     }
   }
@@ -332,16 +340,22 @@ var setVisible = function setVisible(visible) {
   }
 };
 
+var endGame = function endGame(msg, color) {
+  helpTextTag.innerHTML = msg;
+  helpTextTag.style.color = color;
+
+  gameRunning = false;
+
+  document.querySelector('#again').style.display = 'inline';
+};
+
 /* +++++++++++++++++++++++++++++++ on +++++++++++++++++++ */
 
 var onLose = function onLose(sock) {
   var socket = sock;
 
   socket.on('lose', function (data) {
-    helpTextTag.innerHTML = 'YOU LOST TO PLAYER ' + (data.winner + 1) + '!! :c';
-    helpTextTag.style.color = 'red';
-    gameRunning = false;
-    tryWin = true;
+    endGame('YOU LOST TO PLAYER ' + (data.winner + 1) + '!! :c', 'red');
   });
 };
 
@@ -349,9 +363,7 @@ var onWin = function onWin(sock) {
   var socket = sock;
 
   socket.on('win', function () {
-    helpTextTag.innerHTML = 'YOU WON!!';
-    helpTextTag.style.color = 'blue';
-    gameRunning = false;
+    endGame('YOU WON!!', 'blue');
   });
 };
 
@@ -361,6 +373,14 @@ var onMove = function onMove(sock) {
     if (gameRunning) {
       updatePlayer(data.playerPos, data);
     }
+  });
+};
+
+var onInit = function onInit(sock) {
+  var socket = sock;
+
+  socket.on('init', function (data) {
+    updatePlayer(data.playerPos, data);
   });
 };
 
@@ -395,6 +415,10 @@ var onJoin = function onJoin(sock) {
     document.querySelector('#roomp').innerHTML = 'Room: ' + data.room;
 
     addPlayer(playerNum);
+
+    var me = players[playerNum];
+
+    socket.emit('init', { x: me.x, y: me.y, playerPos: playerNum });
   });
 };
 
@@ -411,31 +435,37 @@ var onErr = function onErr(sock) {
 
   socket.on('err', function (data) {
     exitGame();
-    makeErr(data.msg);
+    setVisible(ERR);
+    document.querySelector('#errMsg').innerHTML = data.msg;
   });
 };
 
-var onLobbyUpdate = function onLobbyUpdate(sock, ul) {
+var onUpdateLobby = function onUpdateLobby(sock, ul) {
   var socket = sock;
 
   socket.on('updateLobby', function (data) {
     var room = data.room;
 
     var count = data.roomCount;
+    var closed = false;
+    if (count < 0) {
+      count = -count;
+      closed = true;
+    }
 
     if (count === 0 && gamelist[room]) {
       ul.removeChild(gamelist[room].element);
       delete gamelist[room];
     } else if (!gamelist[room]) {
-      gamelist[room].roomCount = count;
-      setupLobby(ul);
+      gamelist[room] = { roomCount: count };
+      setupLobby(ul, sock);
     } else {
       gamelist[room].roomCount = count;
-      gamelist[room].element.innerHTML = room + ' : ' + count + '/4';
-      if (count === 4) {
-        gamelist[room].element.className = 'full';
+      gamelist[room].element.firstChild.innerHTML = room + ' : ' + count + '/4';
+      if (count === 4 || closed) {
+        gamelist[room].element.firstChild.className = 'full';
       } else {
-        gamelist[room].element.className = 'open';
+        gamelist[room].element.firstChild.className = 'open';
       }
     }
   });
@@ -443,16 +473,13 @@ var onLobbyUpdate = function onLobbyUpdate(sock, ul) {
 
 var onLobby = function onLobby(sock, ul) {
   var socket = sock;
-
   socket.on('lobby', function (data) {
     setVisible(LOBBY);
-
     var keys = Object.keys(data);
     for (var i = 0; i < keys.length; i++) {
       gamelist[keys[i]] = data[keys[i]];
     }
-
-    setupLobby(ul);
+    setupLobby(ul, sock);
   });
 };
 
@@ -464,6 +491,13 @@ var onStart = function onStart(sock) {
   });
 };
 
+var onLeft = function onLeft(socke) {
+  var socket = sock;
+
+  socket.on('left', function (data) {
+    delete players[data.playerPos];
+  });
+};
 /* ------------------------------- on ------------------- */
 
 var init = function init() {
@@ -483,12 +517,21 @@ var init = function init() {
   var createButton = document.querySelector('#createRoomButton');
   var readyButton = document.querySelector('#ready');
   var leaveButton = document.querySelector('#leave');
+  var resetButton = document.querySelector('#again');
 
   var nameText = document.querySelector('#roomName');
 
   for (var i = 0; i < sections.length; i++) {
     sections[i] = document.querySelector('#' + sections[i]);
   }
+
+  resetButton.addEventListener('click', function (e) {
+    if (gameRunning) {
+      return;
+    }
+    socket.emit('reset', {});
+    resetGame();
+  });
 
   leaveButton.addEventListener('click', function (e) {
     socket.emit('leave', {});
@@ -501,14 +544,12 @@ var init = function init() {
 
   readyButton.addEventListener('click', function (e) {
     e.preventDefault(true);
-
     if (ready) {
       return false;
     }
 
     socket.emit('ready', {});
     ready = true;
-
     return false;
   });
 
@@ -518,7 +559,6 @@ var init = function init() {
       return false;
     }
 
-    console.log(nameText.value);
     socket.emit('create', { room: nameText.value });
     setVisible(LOADING);
     nameText.value = '';
@@ -541,6 +581,7 @@ var init = function init() {
     onFull(socket);
     onStart(socket);
     onErr(socket);
+    onInit(socket);
     onMove(socket);
     onWin(socket);
     onLose(socket);

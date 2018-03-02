@@ -43,19 +43,16 @@ const io = socketio(app);
 // small function, but now i'll never mispell err
 const socketErr = (sock, msg) => {
   const socket = sock;
-
   socket.emit('err', { msg });
 };
 
 
 const loadMaze = (sock, roomName) => {
   const socket = sock;
-
-  if (!roomName) {
+  if (!roomName || !rooms[roomName]) {
     socketErr(socket, 'No room exists by that name');
     return;
   }
-
 
   if (rooms[roomName].maze) {
     socket.emit('load', { maze: rooms[roomName].maze });
@@ -74,8 +71,22 @@ const enterLobby = (sock) => {
   const socket = sock;
 
   socket.emit('lobby', roomlist);
+  
+  socket.join('lobby');
+  
+  socket.inLobby = true;
+  delete socket.roomString;
+};
 
-  socket.roomString = 'lobby';
+const updateLobby = (room) => {
+  let res = 1;
+  if(rooms[room].running || rooms[room].over)
+    res = -1
+  io.to('lobby').emit('updateLobby', {room: room, roomCount: res * roomlist[room].roomCount});
+  if (roomlist[room].roomCount === 0) {
+    delete roomlist[room]
+    delete rooms[room];
+  }
 };
 
 // joins socket to a room
@@ -83,8 +94,16 @@ const enterLobby = (sock) => {
 const joinRoom = (sock, roomName) => {
   const socket = sock;
 
+  if(socket.roomString){
+    leaveRoom(socket);
+  }
+  
   if (!rooms[roomName]) {
     return socketErr(socket, 'Room not found');
+  }
+  
+  if(rooms[roomName].running || rooms[roomName].over){
+    return socketErr(socket, 'Game in progress');
   }
 
   const room = rooms[roomName];
@@ -96,28 +115,36 @@ const joinRoom = (sock, roomName) => {
     return socket.emit('full', {});
   }
 
-
+  updateLobby(roomName);
   socket.join(roomName);
   socket.roomString = roomName;
-
+  socket.ready = false;
   socket.join(roomName);
+  
+  let looking = true;
 
   for (let i = 0; i < MAX_ROOM_SIZE; i++) {
-    if (!room[i]) {
+    if (!room[i] && looking) {
       room[i] = socket;
       socket.playerPos = i;
       socket.emit('join', { player: i , room: roomName});
-      return loadMaze(socket, roomName);
+      console.log(i);
+      looking = false;
+    }
+    else if(room[i]){
+      socket.emit('init',  rooms[roomName][i].lastPosition);
     }
   }
+  
+  return loadMaze(socket, roomName);
   // i'm not sure why the code would get here
   return socket.emit('full', {});
 };
 
-const leaveRoom = (sock, noLobby) => {
+const leaveRoom = (sock) => {
   const socket = sock;
 
-  if (!socket.roomString || rooms[socket.roomString] || !socket.playerPos) {
+  if (!socket.roomString || !rooms[socket.roomString] || typeof socket.playerPos === 'undefined') {
     return;
   }
 
@@ -129,36 +156,28 @@ const leaveRoom = (sock, noLobby) => {
   if (!room[n]) {
     return;
   }
-
+  
+  
+  socket.broadcast.to(socket.roomString).emit('left', {playerPos:socket.playerPos});
+  
   delete room[n];
   delete socket.playerPos;
-
+  
+  if(room.readyCount > 0 && socket.ready)
+    room.readyCount--;
   roomlist[s].roomCount--;
+  
+  updateLobby(s);
 
   socket.leave(socket.roomString);
-
   delete socket.roomString;
-
-  if (noLobby === true) {
-    return;
-  }
-
-  enterLobby(socket);
-};
-
-const onLobby = (sock) => {
-  const socket = sock;
-
-  socket.on('lobby', () => {
-    enterLobby(socket);
-  });
 };
 
 const onLeave = (sock) => {
   const socket = sock;
 
   socket.on('leave', () => {
-    if (!socket.roomString || socket.roomString === 'lobby') {
+    if (!socket.roomString) {
       return;
     }
 
@@ -179,15 +198,13 @@ const onCreate = (sock) => {
       return;
     }
 
-    rooms[data.room] = {};
-    roomlist[data.room] = { roomCount: 1 };
-
-    rooms[data.room][0] = socket;
+    rooms[data.room] = {readyCount: 0, running: false, over: false};
+    roomlist[data.room] = { roomCount: 0 };
 
     mazeHandler.createMaze(17, 17).then((m) => {
       rooms[data.room].maze = m;
     });
-
+    
     joinRoom(socket, data.room);
   });
 };
@@ -216,7 +233,7 @@ const validatePos = (sock, data) => {
   newData.x = parseFloat(data.x);
   newData.y = parseFloat(data.y);
   if (Number.isNaN(newData.x) || Number.isNaN(newData.y)) {
-    return {};
+    return {fail: true};
   }
 
   newData.timestamp = new Date().getTime();
@@ -231,11 +248,14 @@ const onMove = (sock) => {
 
   socket.on('move', (data) => {
     const newData = validatePos(socket, data);
-    /*
+    
     if (newData.fail) {
       return;
-    } */
-
+    } 
+    rooms[socket.roomString][socket.playerPos].lastPosition = newData;
+    
+    if(!rooms[socket.roomString].running) return;
+    
     socket.broadcast.to(socket.roomString).emit('move', newData);
   });
 };
@@ -244,22 +264,33 @@ const onWin = (sock) => {
   const socket = sock;
 
   socket.on('win', (data) => {
-    // this is here so eslint will get off my case for now
-    if (!data) {
-      return;// TODO actually validate data
-    }
+    if(!rooms[socket.roomString].running) return;
+    
+    const newData = validatePos(socket, data);
+    
+    if (newData.fail) {
+      return;
+    } 
 
     socket.broadcast.to(socket.roomString).emit('lose', { winner: socket.playerPos });
     socket.emit('win', {});
-    delete rooms[socket.roomString].running;
+    rooms[socket.roomString].running = false;
+    rooms[socket.roomString].over = true;
   });
 };
 
 
 const startGame = (room) => {
   io.to(room).emit('start', {});
-  delete rooms[room].readyCount;
+  rooms[room].readyCount = 0;
+  
+  for(let i = 0; i < 4; i++){
+    if(rooms[room][i])
+      rooms[room][i].ready = false;
+  }
+  
   rooms[room].running = true;
+  updateLobby(room);
 };
 
 const onReady = (sock) => {
@@ -267,26 +298,50 @@ const onReady = (sock) => {
 
   socket.on('ready', () => {
     const s = socket.roomString;
-
+console.dir('1');
     if (!s || !rooms[socket.roomString]) {
+      console.dir('2');
       return;
     }
-
+    
+    if(rooms[socket.roomString].running || rooms[socket.roomString].over)
+      return;
+console.dir('3');
     if (socket.ready) {
       return;
     }
-
+console.dir('4');
     socket.ready = true;
 
-    if (!rooms[s].readyCount) {
-      rooms[s].readyCount = 0;
-    }
-
     rooms[s].readyCount++;
-
-    if (rooms[s].roomCount > 1 && rooms[s].roomCount === rooms[s].readyCount) {
+    console.dir(`${roomlist[s].roomCount} : ${rooms[s].readyCount}`);
+    if (roomlist[s].roomCount > 1 && roomlist[s].roomCount === rooms[s].readyCount) {
+      console.dir('5');
       startGame(socket.roomString);
     }
+  });
+};
+
+const onReset = (sock) => {
+  const socket = sock;
+  
+  socket.on('reset', () => {
+    if(!rooms[socket.roomString].over)
+      return;
+    
+    rooms[socket.roomString].over = false;
+    rooms[socket.roomString].running = false;
+    rooms[socket.roomString].readyCount = 0;
+    updateLobby(socket.roomString);
+  });
+}
+
+const onInit = sock => {
+  const socket = sock;
+  
+  socket.on('init', data => {
+    rooms[socket.roomString][socket.playerPos].lastPosition = data;
+    socket.broadcast.to(socket.roomString).emit('init', data);
   });
 };
 
@@ -294,15 +349,12 @@ const onDisconnect = (sock) => {
   const socket = sock;
 
   socket.on('disconnect', () => {
-    leaveRoom(socket, true);
-
-    if (socket.roomString) {
-      socket.leave(socket.roomString);
-      if (rooms[socket.roomString]) { delete rooms[socket.roomString][socket.playerPos]; }
-      delete socket.playerPos;
-      delete socket.roomString;
-      delete socket.isJoined;
-    }
+    leaveRoom(socket);
+    socket.leave('lobby');
+    delete socket.playerPos;
+    delete socket.roomString;
+    delete socket.isJoined;
+    delete socket.inLobby;
   });
 };
 
@@ -310,17 +362,13 @@ const onDisconnect = (sock) => {
 io.sockets.on('connection', (sock) => {
   const socket = sock;
 
-
-  if (!socket.isJoined) {
-    socket.isJoined = true;
-  }
-
   enterLobby(socket);
 
+  onInit(socket);
   onCreate(socket);
-  onLobby(socket);
   onLeave(socket);
   onReady(socket);
+  onReset(socket);
   onJoinRoom(socket);
   onMove(socket);
   onWin(socket);
