@@ -1,7 +1,7 @@
 {
-  "name": "synchromaze",
+  "name": "syncing-3",
   "version": "1.0.0",
-  "description": "A multiplayer synchronous maze game",
+  "description": "Syncrhonous gravity sim",
   "main": "./server/server.js",
   "scripts": {
     "build": "babel ./client --out-file ./hosted/bundle.js",
@@ -13,23 +13,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KMTaylor023/Synchromaze.git"
+    "url": "git+https://github.com/KMTaylor023/Syncing-3.git"
   },
   "keywords": [
-    "Synchronous",
-    "maze",
-    "590",
-    "IGME",
-    "wow",
-    "cool",
-    "awesome"
+    "syncing-3",
+    "gravity",
+    "wow"
   ],
   "author": "Keegan Taylor",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/KMTaylor023/Synchromaze/issues"
+    "url": "https://github.com/KMTaylor023/Syncing-3/issues"
   },
-  "homepage": "https://github.com/KMTaylor023/Synchromaze#readme",
+  "homepage": "https://github.com/KMTaylor023/Syncing-3#readme",
   "dependencies": {
     "socket.io": "^2.0.4"
   },
