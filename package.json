@@ -27,7 +27,8 @@
   },
   "homepage": "https://github.com/KMTaylor023/Syncing-3#readme",
   "dependencies": {
-    "socket.io": "^2.0.4"
+    "socket.io": "^2.0.4",
+    "xxhashjs": "^0.2.2"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
