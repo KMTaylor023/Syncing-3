@@ -53,11 +53,11 @@ const io = socketio(app);
 const updateVelocityY = (char) => {
   const player = char;
   player.destY = player.y + (10 * player.vy);
-  
-  if(player.y >= 379 && player.vy > 0){
+
+  if (player.y >= 379 && player.vy > 0) {
     player.airborne = false;
   }
-  
+
   player.lastUpdate = new Date().getTime();
 
   io.sockets.in('room1').emit('grav', player);
@@ -175,15 +175,15 @@ const onDisconnect = (sock) => {
 
 const updatePlayers = (sock) => {
   const socket = sock;
-  const hash = socket.hash;
-  
+  const { hash } = socket;
+
   const keys = Object.keys(players);
-  for(let i = 0; i < keys.length; i++){
-    if(keys[i] !== hash){
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i] !== hash) {
       socket.emit('move', players[keys[i]]);
     }
   }
-}
+};
 
 // Sets up the socket message handlers
 io.sockets.on('connection', (sock) => {
@@ -197,7 +197,7 @@ io.sockets.on('connection', (sock) => {
   socket.join('room1');
   socket.emit('join', players[hash]);
   updatePlayers(socket);
-  
+
   onMove(socket);
   onJump(socket);
   onDisconnect(socket);
