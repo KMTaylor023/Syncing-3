@@ -101,7 +101,7 @@ const onGrav = (sock) => {
       return;
     }
     
-    player.destY = data.destY;
+    player.vy = data.vy;
     player.airborne = data.airborne;
   });
   

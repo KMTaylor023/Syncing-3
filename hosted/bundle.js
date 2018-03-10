@@ -104,7 +104,7 @@ var onGrav = function onGrav(sock) {
       return;
     }
 
-    player.destY = data.destY;
+    player.vy = data.vy;
     player.airborne = data.airborne;
   });
 };
@@ -156,7 +156,6 @@ var lerp = function lerp(v0, v1, alpha) {
 var updatePosition = function updatePosition(sock) {
   var socket = sock;
   var player = players[hash];
-
   player.moveLeft = moveLeft;
   player.moveRight = moveRight;
   player.px = player.x;
@@ -172,6 +171,8 @@ var updatePosition = function updatePosition(sock) {
     grounded = false;
     socket.emit('jump', {});
   }
+
+  player.destY = player.y + 20 * player.vy;
 
   if (player.airborne && player.vy < 0 && player.moveLeft) player.direction = directions.UPLEFT;
 

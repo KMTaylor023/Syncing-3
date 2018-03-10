@@ -52,8 +52,6 @@ const io = socketio(app);
 
 const updateVelocityY = (char) => {
   const player = char;
-  player.destY = player.y + (10 * player.vy);
-
   if (player.y >= 379 && player.vy > 0) {
     player.airborne = false;
   }
@@ -72,7 +70,7 @@ const validatePos = (sock, data) => {
 
   let valid = true;
 
-  if (player.vy !== data.vy && player.destY !== data.destY) {
+  if (player.vy !== data.vy) {
     valid = false;
   }
 
@@ -105,6 +103,7 @@ const validatePos = (sock, data) => {
   }
 
   player.destX = data.destX;
+  player.destY = data.destY;
   player.px = data.px;
   player.py = data.py;
   player.direction = data.direction;

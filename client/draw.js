@@ -21,7 +21,6 @@ const lerp = (v0, v1, alpha) => {
 const updatePosition = (sock) => {
   const socket = sock;
   const player = players[hash];
-
   player.moveLeft = moveLeft;
   player.moveRight = moveRight;
   player.px = player.x;
@@ -38,6 +37,7 @@ const updatePosition = (sock) => {
     socket.emit('jump', {});
   }
   
+  player.destY = player.y + (20 * player.vy);
   
 
   if(player.airborne && player.vy < 0 && player.moveLeft) player.direction = directions.UPLEFT;
